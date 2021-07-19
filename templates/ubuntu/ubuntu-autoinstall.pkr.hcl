@@ -108,7 +108,7 @@ source "hyperv-iso" "install" {
   iso_checksum       = "${var.iso_checksum}"
   iso_url            = "${var.mirror}/${var.mirror_directory}/${var.iso_name}"
   memory             = "${var.memory}"
-  output_directory   = "${var.build_directory}/packer-${var.template}-hyperv"
+  output_directory   = "${var.build_directory}/${var.template}-stage0"
   shutdown_command   = "echo '${var.password}' | sudo -S shutdown -P now"
   ssh_password       = "${var.password}"
   ssh_port           = 22
@@ -157,18 +157,4 @@ build {
         "${path.root}/../linux/scripts/minimize.sh"]
   }
 
-   provisioner "breakpoint" {
-
-   }
-
-  post-processor "compress" {
-    only   = var.username != "vagrant" ? ["hyperv-iso.install"] : ["dummy"]           
-    output =  "${var.build_directory}/${var.template}.zip"
   }
-
-  post-processor "vagrant" {
-    only   = var.username == "vagrant" ? ["hyperv-iso.install"] : ["dummy"]
-    output = "${var.build_directory}/${var.template}.box"
-  }
-
-}

@@ -1,5 +1,5 @@
 
-template = "ubuntu-20.04-amd64"
+template = "ubuntu-20.04"
 mirror_directory = "20.04"
 boot_wait = "3s"
 iso_name = "ubuntu-20.04.2-live-server-amd64.iso"
