@@ -1,0 +1,31 @@
+driver:
+  name: vagrant
+  customize:
+    cpus: 2
+    memory: 4096
+
+transport:
+  name: winrm
+  elevated: true
+
+provisioner:
+  name: chef_zero
+  deprecations_as_errors: true
+
+platforms:
+  - name: windows-2019
+    driver_config:
+      box: tas50/windows_2019
+  - name: windows-2016
+    driver_config:
+      box: tas50/windows_2016
+  - name: windows-2012r2
+    driver_config:
+      box: tas50/windows_2012r2
+
+suites:
+  - name: default
+    run_list:
+      - recipe[packer::first_boot]
+      - recipe[packer::vagrant]
+      - recipe[packer::finalize]
