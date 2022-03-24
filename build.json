@@ -1,0 +1,14 @@
+[
+    {"ubuntu": [
+        "ubuntu-20.04",
+        "ubuntu-21.04"
+    ],
+    "windows": [
+        "winsrv2016-standard",
+        "winsrv2016-standardcore",
+        "winsrv2019-standard",
+        "winsrv2019-standardcore",
+        "win10-2004-enterprise"
+    ]
+}
+]
