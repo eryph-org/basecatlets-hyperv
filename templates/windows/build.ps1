@@ -10,8 +10,7 @@ param(
         'win10-2004-enterprise'
       )]
       [string]$Template_name,
-      [string]$SwitchName,
-      [switch]$VagrantBox = $false)
+      [string]$SwitchName)
 
 $ErrorActionPreference = 'Stop'
 

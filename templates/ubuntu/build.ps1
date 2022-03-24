@@ -5,8 +5,7 @@ param(
         'ubuntu-21.04'
       )]
       [string]$Template_name,
-      [string]$SwitchName,
-      [switch]$VagrantBox = $false)
+      [string]$SwitchName)
 
 $ErrorActionPreference = 'Stop'
 
