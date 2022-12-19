@@ -93,6 +93,7 @@ build {
     cookbook_paths = ["${path.root}/cookbooks"]
     guest_os_type  = "windows"
     run_list       = ["packer::first_boot"]
+    version        = 17
   }
 
   provisioner "windows-restart" {
@@ -110,6 +111,7 @@ build {
     cookbook_paths = ["${path.root}/cookbooks"]
     guest_os_type  = "windows"
     run_list       = ["packer::vagrant"]
+    version        = 17
   }
 
   provisioner "windows-restart" {
@@ -119,6 +121,7 @@ build {
     cookbook_paths = ["${path.root}/cookbooks"]
     guest_os_type  = "windows"
     run_list       = ["packer::finalize"]
+    version        = 17
   }
 
   provisioner "powershell" {
