@@ -14,13 +14,16 @@ $vmFile = (Get-ChildItem -Path $vmDir -Filter "*.vmcx" | Select-Object -First 1)
 
 $vm = Import-VM -Path $vmFile
 
-$names = 'sda', 'sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj'
+$vm | Set-VMProcessor -CompatibilityForMigrationEnabled $true -ErrorAction Continue
+
+$names = 'sda', 'sdb', 'sdc', 'sdd', 'sde', 'sdf', 'sdg', 'sdh', 'sdi', 'sdj', 'sdk', 'sdl', 'sdm', 'sdn', 
+         'sdo', 'sdp', 'sdq', 'sdr', 'sds', 'sdt'
 
 $counter = -1
 Get-VMHardDiskDrive -VM $vm | ForEach-Object {
     $counter++
-    if($counter -gt 9) {
-        throw "Only up to 10 drives are supported"
+    if($counter -gt 19) {
+        throw "Only up to 20 drives are supported"
     }
 
     $drive = $_
