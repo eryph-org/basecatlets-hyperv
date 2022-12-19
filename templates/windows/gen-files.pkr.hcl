@@ -38,11 +38,17 @@ variable "password" {
   default = "MgP3?kh-@BkqKRvW"
 }
 
+variable "componentElement" {
+  type    = string
+  default = ""
+}
+
 source "file" "unattended_file" {
   content = templatefile("${var.unattended_file}", {
         windows_image_name = "${var.windows_image_name}"
         username           = "${var.username}"
-        password           = "${var.password}"
+        password           = "${var.password}",
+        componentElement   = "${var.componentElement}"
     } )
   target  = "${var.target_path}/Autounattend.xml"
 }

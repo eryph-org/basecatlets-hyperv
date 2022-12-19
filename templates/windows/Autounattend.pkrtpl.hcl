@@ -76,6 +76,7 @@
                 <FullName>Windows Image</FullName>
                 <Organization>eryph by dbosoft GmbH</Organization>
             </UserData>
+            ${componentElement}
         </component>
     </settings>
     <settings pass="generalize">
