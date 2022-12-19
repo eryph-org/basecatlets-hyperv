@@ -7,7 +7,11 @@
         "winsrv2016-standardcore",
         "winsrv2019-standard",
         "winsrv2019-standardcore",
-        "win10-2004-enterprise"
+        "winsrv2022-standard",
+        "win10-2004-enterprise",
+        "win10-20h2-enterprise",
+        "win11-21h1-enterprise",
+        "win11-22h2-enterprise"
     ]
 }
 ]

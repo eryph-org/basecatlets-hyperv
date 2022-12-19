@@ -63,5 +63,8 @@ $adminAccount = Get-LocalUser Administrator
 $adminAccount | Set-LocalUser -Password $adminPassword
 $adminAccount | Disable-LocalUser
 
+# disable autologon for administrator
+set-ItemProperty -path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'AutoAdminLogon' -Value 0
+
 Stop-Computer -Force
 
