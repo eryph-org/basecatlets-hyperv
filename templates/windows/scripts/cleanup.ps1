@@ -54,6 +54,9 @@ else {
 # wait for sysprep
 Start-Sleep -Seconds 60
 
+## these changes are applied after sysprep:
+## -----------------------------------------------
+
 # generalize may reset Administrator password, so do this at end
 # set a random password and disable administrator user
 Add-Type -AssemblyName System.Web
@@ -65,6 +68,10 @@ $adminAccount | Disable-LocalUser
 
 # disable autologon for administrator
 set-ItemProperty -path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon' -Name 'AutoAdminLogon' -Value 0
+
+# disable network discovery
+New-Item -Path "HKLM:\System\CurrentControlSet\Control\Network\NewNetworkWindowOff\"
+
 
 Stop-Computer -Force
 
