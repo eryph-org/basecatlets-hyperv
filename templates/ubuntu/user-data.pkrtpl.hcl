@@ -12,9 +12,7 @@ autoinstall:
   ssh:
     install-server: true
   packages:
-    - linux-image-virtual
-    - linux-tools-virtual
-    - linux-cloud-tools-virtual
+    - linux-azure
   storage:
     layout:
       name: direct

@@ -136,7 +136,4 @@ build {
     timeout           = "5m"
   }
 
-  error-cleanup-provisioner "powershell" {
-    inline = ["gc C:\\Windows\\System32\\Sysprep\\panther\\sysprep_script.log"]
-  }
 }

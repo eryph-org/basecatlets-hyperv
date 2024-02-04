@@ -1,5 +1,5 @@
-# hyperv-boxes
-Vagrant boxes for eryph and Hyper-V
+# hyperv-templates
+Hyper-V VM templates for eryph catlets
 
 This repository contains packer templates to build boxes for Hyper-V that are optimized for erpyh:
 
@@ -8,25 +8,3 @@ This repository contains packer templates to build boxes for Hyper-V that are op
 - naming conventions for eryph VMs
 
 
-## Building Ubuntu boxes
-
-Generic Hyper-V / eryph
-
-``` cmd
-cd templates\ubuntu
-..\..\tools\packer.exe build -var-file="ubuntu-20.04.pkrvars.hcl"  \ 
--var-file=..\linux\vagrant.pkrvars.hcl  -var hyperv_switch=<SwitchName>
-```
-
-Vagrant boxes
-
-``` cmd
-cd templates\ubuntu
-..\..\tools\packer.exe build -var-file="ubuntu-20.04.pkrvars.hcl"  \ 
--var hyperv_switch=<SwitchName>
-```
-
-
-## Building Windows images
-
-To build Windows images you have to run the build.ps1 script in folder templates\windows.

@@ -39,15 +39,17 @@ Push-Location $PSScriptRoot
 $buildid = New-Guid
 $isoFolder = "..\..\builds\iso-${buildid}"
 
+$overridesFile = New-TemporaryFile
+
 try{
   mkdir $isoFolder | Out-Null
 
   ..\..\tools\packer.exe init  windows.pkr.hcl
-  ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=target_path="${isoFolder}" gen-files.pkr.hcl
+  ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=target_path="${isoFolder}" -var=vm_overrides_path="${overridesFile}" gen-files.pkr.hcl
   ..\..\tools\oscdimg.exe -u2 "${isoFolder}" "..\..\builds\$buildid.iso"
   ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=secondary_iso_path="..\..\builds\$buildid.iso" -var=hyperv_switch="${SwitchName}" windows.pkr.hcl
   $metadataJson | sc -Path ..\..\builds\$template_name-stage0\metadata.json
-
+  Copy-Item $overridesFile ..\..\builds\$template_name-stage0\vm-overrides.json
 }
 finally{
   Remove-Item -Recurse $isoFolder

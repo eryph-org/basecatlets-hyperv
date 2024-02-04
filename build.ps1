@@ -20,20 +20,26 @@ $buildList | ForEach-Object {
     $osType = $_.Key
     $variants = $_.Value
         $variants | % {          
-            Join-Path ./templates $osType | Push-Location                   
-            try{            
 
-                $template = $_        
-                Write-Output "Build image $osType/$template"
-                ./build.ps1 -Template_name $template       
-                
-                
+            try{
+                Join-Path ./templates $osType | Push-Location                   
+                try{            
+
+                    $template = $_        
+                    Write-Output "Build image $osType/$template"
+                    ./build.ps1 -Template_name $template     
+                    
+                }
+                finally{
+                    Pop-Location
+                }
+                .\tools\catlettify.ps1 -BasePath .\builds -TemplateName $template
             }
-            finally{
-                Pop-Location
+            catch{
+                Write-Output "Building image $osType/$template failed"
+                Write-Error $_
             }
 
-            .\tools\namingconvention.ps1 -BasePath .\builds -TemplateName $template
         }
 
 

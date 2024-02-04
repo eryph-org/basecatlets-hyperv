@@ -18,11 +18,21 @@ if([string]::IsNullOrWhiteSpace($SwitchName)){
   throw 'Switch name not set and no external switch found'
 }
 
+$metadata = @{
+  os_type = "linux"
+  os_name  = $Template_name
+  build_date = (Get-Date).ToString("s")
+}
 
+$metadataJson = $metadata | ConvertTo-Json
+$overridesFile = New-TemporaryFile
 Push-Location $PSScriptRoot
 
 try{
+  ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=vm_overrides_path="${overridesFile}" gen-files.pkr.hcl
   ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=hyperv_switch="${SwitchName}" ubuntu-autoinstall.pkr.hcl  
+  $metadataJson | sc -Path ..\..\builds\$template_name-stage0\metadata.json
+  Copy-Item $overridesFile ..\..\builds\$template_name-stage0\vm-overrides.json
 }
 finally{
   Pop-Location

@@ -136,17 +136,10 @@ build {
      expect_disconnect = true
      scripts           = [
        "${path.root}/scripts/update.sh", 
-      // "${path.root}/scripts/networking.sh", 
+       "${path.root}/scripts/networking.sh", 
        "${path.root}/scripts/hyperv.sh",
         "${path.root}/scripts/cloud-init.sh",
        ]
-  }
-
-  provisioner "shell" {
-      only              = var.username == "vagrant" ? ["hyperv-iso.install"] : ["dummy"]
-      environment_vars  = ["HOME_DIR=/home/vagrant", "http_proxy=${var.http_proxy}", "https_proxy=${var.https_proxy}", "no_proxy=${var.no_proxy}"]
-      execute_command   = "echo '${var.password}' | {{ .Vars }} sudo -S -E sh -eux '{{ .Path }}'"
-      scripts           = ["${path.root}/scripts/vagrant.sh"]
   }
 
   provisioner "shell" {
