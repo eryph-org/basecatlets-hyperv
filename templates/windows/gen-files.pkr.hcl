@@ -30,7 +30,7 @@ variable "iso_url" {
 
 variable "username" {
   type    = string
-  default = "Administrator"
+  default = "packer"
 }
 
 variable "password" {

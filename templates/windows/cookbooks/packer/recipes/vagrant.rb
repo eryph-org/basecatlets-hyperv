@@ -2,7 +2,7 @@
 include_recipe 'packer::disable_restore'
 include_recipe 'packer::ui_tweaks'
 
-# OneDrive takes up 150 megs and isn't needed for testing
+# OneDrive takes up 150 megs and almost never used on VMs
 windows_package 'Microsoft OneDrive' do
   action :remove
 end

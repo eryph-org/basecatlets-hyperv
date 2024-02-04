@@ -1,3 +1,0 @@
-
-username = "vagrant"
-password = "vagrant"

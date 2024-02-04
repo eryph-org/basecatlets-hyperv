@@ -41,7 +41,7 @@ variable "windows_image_name" {
 
 variable "memory" {
   type    = string
-  default = "4096"
+  default = "8192"
 }
 variable "template" {
   type    = string
@@ -49,7 +49,7 @@ variable "template" {
 
 variable "username" {
   type    = string
-  default = "Administrator"
+  default = "packer"
 }
 
 
@@ -72,14 +72,15 @@ source "hyperv-iso" "install" {
   headless           = true
   enable_secure_boot = true
   generation         = "2"
+  configuration_version = "9.0"
   iso_checksum       = "${var.iso_checksum}"
   iso_url            = "${var.iso_url}"
   memory             = "${var.memory}"
   output_directory   = "${var.build_directory}/${var.template}-stage0"
-  shutdown_timeout   = "15m"
+  disable_shutdown   = true
   winrm_username     = "${var.username}"
   winrm_password     = "${var.password}"
-  winrm_timeout      = "12h"
+  winrm_timeout      = "1h"
   switch_name        = "${var.hyperv_switch}"
   vm_name            = "${var.template}"
   secondary_iso_images = [ "${var.secondary_iso_path}" ]
@@ -99,23 +100,19 @@ build {
   provisioner "windows-restart" {
   }
 
+  # run 3 times to ensure that all updates are installed
   provisioner "windows-update" {}
 
-  # run two times to ensure that all updates are installed
+  provisioner "windows-restart" {}
+
   provisioner "windows-update" {}
   
+  provisioner "windows-restart" {}
 
-  # run vagrant optimization in vagrant build  
-  provisioner "chef-solo" {
-    only              = var.username == "vagrant" ? ["hyperv-iso.install"] : ["dummy"]
-    cookbook_paths = ["${path.root}/cookbooks"]
-    guest_os_type  = "windows"
-    run_list       = ["packer::vagrant"]
-    version        = 17
-  }
+  provisioner "windows-update" {}
+  
+  provisioner "windows-restart" {}
 
-  provisioner "windows-restart" {
-  }
 
   provisioner "chef-solo" {
     cookbook_paths = ["${path.root}/cookbooks"]
@@ -123,11 +120,23 @@ build {
     run_list       = ["packer::finalize"]
     version        = 17
   }
+  
+  provisioner "powershell" {
+    elevated_password = "${var.password}"
+    elevated_user     = "${var.username}"
+    script            = "${path.root}/scripts/prepare_sysprep.ps1"
+  }
+
+  provisioner "windows-restart" {}
 
   provisioner "powershell" {
     elevated_password = "${var.password}"
     elevated_user     = "${var.username}"
-    script            = "${path.root}/scripts/cleanup.ps1"
+    script            = "${path.root}/scripts/sysprep.ps1"
+    timeout           = "5m"
   }
 
+  error-cleanup-provisioner "powershell" {
+    inline = ["gc C:\\Windows\\System32\\Sysprep\\panther\\sysprep_script.log"]
+  }
 }

@@ -38,8 +38,7 @@ powershell_script 'remove unnecesary directories' do
       "$env:localappdata\\temp\\*",
       "$env:windir\\logs",
       "$env:windir\\temp",
-      "$env:windir\\winsxs\\manifestcache",
-      "C:\\Users\\vagrant\Favorites\\*"
+      "$env:windir\\winsxs\\manifestcache"
   ) | % {
           if(Test-Path $_) {
               Write-Host "Removing $_"
@@ -58,13 +57,4 @@ end
   execute "Cleaning the #{log} event log" do
     command "wevtutil clear-log #{log}"
   end
-end
-
-# remove pagefile. it will get created on boot next time
-registry_key 'HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management' do
-  values [{
-    name: 'PagingFiles',
-    type: :string,
-    data: '',
-  }]
 end
