@@ -1,8 +1,9 @@
 
-template = "ubuntu-21.04"
-mirror_directory = "21.04"
-iso_name = "ubuntu-21.04-live-server-amd64.iso"
-iso_checksum = "e4089c47104375b59951bad6c7b3ee5d9f6d80bfac4597e43a716bb8f5c1f3b0"
+template = "ubuntu-22.04"
+mirror_directory = "22.04"
+boot_wait = "3s"
+iso_name = "ubuntu-22.04.3-live-server-amd64.iso"
+iso_checksum = "sha256:a4acfda10b18da50e2ec50ccaf860d7f20b389df8765611142305c0e911d16fd"
 boot_cmds = [
     " <wait>", 
     " <wait>", 

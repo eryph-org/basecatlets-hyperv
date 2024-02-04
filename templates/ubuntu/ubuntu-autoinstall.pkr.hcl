@@ -37,7 +37,7 @@ variable "iso_name" {
 
 variable "memory" {
   type    = string
-  default = "1024"
+  default = "2048"
 }
 
 variable "mirror" {
@@ -105,6 +105,7 @@ source "hyperv-iso" "install" {
   enable_secure_boot = true
   secure_boot_template = "MicrosoftUEFICertificateAuthority"
   generation         = "2"
+  configuration_version = "8.0"
   iso_checksum       = "${var.iso_checksum}"
   iso_url            = "${var.mirror}/${var.mirror_directory}/${var.iso_name}"
   memory             = "${var.memory}"
@@ -135,7 +136,7 @@ build {
      expect_disconnect = true
      scripts           = [
        "${path.root}/scripts/update.sh", 
-       "${path.root}/scripts/networking.sh", 
+      // "${path.root}/scripts/networking.sh", 
        "${path.root}/scripts/hyperv.sh",
         "${path.root}/scripts/cloud-init.sh",
        ]

@@ -2,7 +2,8 @@ param(
       [Parameter(Mandatory=$true, Position=0)]
       [ValidateSet(
         'ubuntu-20.04',
-        'ubuntu-21.04'
+        'ubuntu-22.04',
+        'ubuntu-23.04'
       )]
       [string]$Template_name,
       [string]$SwitchName)
