@@ -5,6 +5,20 @@ param(
       [Parameter(Mandatory=$true, Position=1)]
       [string]$TemplateName)
 
+      function ConvertTo-PSObject {
+        [cmdletbinding()]
+        param (
+            [Parameter(Mandatory=$true, ValueFromPipeline=$true)]
+            [object]$InputObject
+        )
+    
+        $obj = New-Object psobject
+        $InputObject | Get-Member | Where-Object {$_.MemberType -eq "Property" -or $_.MemberType -eq "NoteProperty"} | ForEach-Object {
+
+            $obj | Add-Member -MemberType NoteProperty -Name $_.Name -Value $InputObject.($_.Name)
+        }
+        $obj
+    }
 
 $ErrorActionPreference = "Stop"
 
@@ -58,15 +72,15 @@ try{
     }
 
     $exportPath = [System.IO.Path]::Combine($BasePath,"$TemplateName-stage1")
-    $vmJsonPath = [System.IO.Path]::Combine($exportPath,$TemplateName,"vm.json")
+    $vmJsonPath = [System.IO.Path]::Combine($exportPath,"vm.json")
     $vmJsonOverridesPath = [System.IO.Path]::Combine($importDir,"vm-overrides.json")
 
     Write-Host "Exporting VM settings"
     $vmData = @{
-        vm = $vm
-        firmware  = $vm | Get-VMFirmware
-        processor = $vm | Get-VMProcessor
-        security = $vm | Get-VMSecurity -ErrorAction SilentlyContinue
+        vm = $vm | ConvertTo-PSObject
+        firmware  = $vm | Get-VMFirmware| ConvertTo-PSObject
+        processor = $vm | Get-VMProcessor| ConvertTo-PSObject
+        security = $vm | Get-VMSecurity -ErrorAction SilentlyContinue| ConvertTo-PSObject
     }
 
     $overrideData = @{}
@@ -77,17 +91,17 @@ try{
         if($overrideData.security){
             if($overrideData.security."TpmEnabled"){
                 Write-Host "Setting TpmEnabled to $($overrideData.security."TpmEnabled")"
-                $overrideData.security."TpmEnabled" = $overrideData.security."TpmEnabled"
+                $vmData.security."TpmEnabled" = $overrideData.security."TpmEnabled"
             }
         }
         if($overrideData.vm){
             if($overrideData.vm."MemoryStartup"){
                 Write-Host "Setting MemoryStartup to $($overrideData.vm."MemoryStartup")"
-                $overrideData.vm."MemoryStartup" = $overrideData.vm."MemoryStartup"
+                $vmData.vm."MemoryStartup" = $overrideData.vm."MemoryStartup"
             }
             if($overrideData.vm."ProcessorCount"){
                 Write-Host "Setting ProcessorCount to $($overrideData.vm."ProcessorCount")"
-                $overrideData.vm."ProcessorCount" = $overrideData.vm."ProcessorCount"
+                $vmData.vm."ProcessorCount" = $overrideData.vm."ProcessorCount"
             }
         }
     }
