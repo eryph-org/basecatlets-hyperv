@@ -3,6 +3,8 @@
 ubuntu_version="`lsb_release -r | awk '{print $2}'`";
 major_version="`echo $ubuntu_version | awk -F. '{print $1}'`";
 
+exit 0;  # disable for now as it breaks the build
+
 if [ $major_version = "20" ]
 then 
     # Disable Predictable Network Interface names and use eth0

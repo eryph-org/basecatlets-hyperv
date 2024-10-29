@@ -12,7 +12,6 @@ boot_cmds = [
     " <wait>", 
     "c", 
     "<wait>", 
-    "set gfxpayload=keep", 
     "<enter><wait>", 
     "linux /casper/vmlinuz quiet<wait>", 
     " autoinstall<wait>", 
