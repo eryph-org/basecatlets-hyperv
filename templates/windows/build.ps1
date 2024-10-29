@@ -28,8 +28,8 @@ if([string]::IsNullOrWhiteSpace($SwitchName)){
 }
 
 $metadata = @{
-    os_type = "windows"
-    os_name  = $Template_name
+    "_os_type" = "windows"
+    "_os_name"  = $Template_name
     build_date = (Get-Date).ToString("s")
 }
 

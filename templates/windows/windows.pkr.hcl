@@ -5,6 +5,14 @@ packer {
       version = "0.12.0"
       source = "github.com/rgl/windows-update"
     }
+    chef = {
+      version = " >= 1.0.0"      
+      source  = "github.com/bdwyertech/chef"
+    }
+    hyperv = {
+      version = " >= 1.1.0"
+      source  = "github.com/hashicorp/hyperv"
+    }
   }
 }
 

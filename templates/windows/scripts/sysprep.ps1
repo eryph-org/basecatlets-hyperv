@@ -44,7 +44,7 @@ else {
 
 $sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
 
-$timeLeft = 300
+$timeLeft = 200
 $waits = 0
 while($sysprep_succeded -ne $true){
     
@@ -53,7 +53,7 @@ while($sysprep_succeded -ne $true){
     Start-Sleep -Seconds 5
     $timeLeft-=5
     $sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
-    if($waits -ge 60){
+    if($waits -ge 40){
         break
     }
 }
@@ -123,13 +123,7 @@ $adminAccount | Set-LocalUser -Password $adminPassword
 $adminAccount | Disable-LocalUser
 
 Write-Host "Image building completed. Next step will disable packer user account and shutdown the machine"
-Add-Type -AssemblyName System.Web
-$adminPasswordPlain = [System.Web.Security.Membership]::GeneratePassword(30,4)
-$adminPassword = ConvertTo-SecureString $adminPasswordPlain -AsPlainText -Force
-$adminAccount = Get-LocalUser packer
-$adminAccount | Set-LocalUser -Password $adminPassword
-$adminAccount | Disable-LocalUser
 
-
-Stop-Computer -Force
-
+$packerAccount = Get-LocalUser packer
+$packerAccount | Disable-LocalUser -ErrorAction Continue
+Stop-Computer -Force -ErrorAction Continue
