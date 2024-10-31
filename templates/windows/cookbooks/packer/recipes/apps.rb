@@ -35,6 +35,7 @@ Get-AppXProvisionedPackage -Online | ForEach-Object {
 # NB some packages fail to be removed and thats OK.
 # see https://docs.microsoft.com/en-us/windows/application-management/apps-in-windows-10
 @(
+    'Clipchamp.Clipchamp'
     'Microsoft.BingWeather'
     'Microsoft.GetHelp'
     'Microsoft.Getstarted'

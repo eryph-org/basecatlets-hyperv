@@ -11,6 +11,8 @@ trap {
     Exit 1
 }
 
+Start-Transcript -Path C:\Windows\Temp\sysprep.log -Append
+
 
 Write-Host "Cleaning Temp Files..."
 try {
@@ -19,8 +21,7 @@ try {
   Remove-Item "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
 } catch { }
 
-
-Write-Host "Preparing sysprep"
+Write-Host "CHECKPOINT_01 Preparing sysprep"
 
 
 #Takeown /F "C:\Windows\System32\Sysprep\ActionFiles\Generalize.xml"
@@ -44,16 +45,16 @@ else {
 
 $sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
 
-$timeLeft = 200
+$timeLeft = 900
 $waits = 0
 while($sysprep_succeded -ne $true){
     
     Write-Host "Waiting for sysprep... ($timeLeft seconds left)"
     $waits++
-    Start-Sleep -Seconds 5
-    $timeLeft-=5
+    Start-Sleep -Seconds 10
+    $timeLeft-=10
     $sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
-    if($waits -ge 40){
+    if($waits -ge 90){
         break
     }
 }
@@ -70,9 +71,9 @@ if($sysprep_succeded -ne $true){
     return -1
  }
 
- Write-Host "Sysprep completed"
+ Write-Host "CHECKPOINT_02: Sysprep completed"
 
-## these changes are applied after sysprep:
+ ## these changes are applied after sysprep:
 ## -----------------------------------------------
 
 # disable network discovery
@@ -112,7 +113,7 @@ finally {
 }
 
 Remove-Item $FilePath
-
+Write-Host "CHECKPOINT_03: Cleanup completed"
 
 Write-Host "Randomize Administrator password and disable account"
 Add-Type -AssemblyName System.Web
@@ -124,6 +125,9 @@ $adminAccount | Disable-LocalUser
 
 Write-Host "Image building completed. Next step will disable packer user account and shutdown the machine"
 
-$packerAccount = Get-LocalUser packer
+$packerAccount = Get-LocalUser packer -ErrorAction Continue
 $packerAccount | Disable-LocalUser -ErrorAction Continue
+
+Write-Host "CHECKPOINT_04: Shutdown"
 Stop-Computer -Force -ErrorAction Continue
+

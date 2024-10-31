@@ -79,13 +79,15 @@ source "hyperv-iso" "install" {
   disk_size          = "${var.disk_size}"
   headless           = true
   enable_secure_boot = true
+  enable_tpm         = true
   generation         = "2"
   configuration_version = "9.0"
   iso_checksum       = "${var.iso_checksum}"
   iso_url            = "${var.iso_url}"
   memory             = "${var.memory}"
   output_directory   = "${var.build_directory}/${var.template}-stage0"
-  disable_shutdown   = true
+  shutdown_command   = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass c:\\windows\\temp\\sysprep.ps1"
+  shutdown_timeout   = "20m"
   winrm_username     = "${var.username}"
   winrm_password     = "${var.password}"
   winrm_timeout      = "1h"
@@ -97,7 +99,6 @@ source "hyperv-iso" "install" {
 build {
   sources = ["source.hyperv-iso.install"]
 
-
   provisioner "chef-solo" {
     cookbook_paths = ["${path.root}/cookbooks"]
     guest_os_type  = "windows"
@@ -108,9 +109,13 @@ build {
   provisioner "windows-restart" {
   }
 
-  # run 3 times to ensure that all updates are installed
+  # run 4 times to ensure that all updates are installed
   provisioner "windows-update" {}
 
+  provisioner "windows-restart" {}
+
+  provisioner "windows-update" {}
+  
   provisioner "windows-restart" {}
 
   provisioner "windows-update" {}
@@ -136,12 +141,15 @@ build {
   }
 
   provisioner "windows-restart" {}
-
+  
+  /*
+  this script is embedded in prepare_sysprep.ps1 
+  uncomment this block if you would like to see script output for diagnostics
   provisioner "powershell" {
     elevated_password = "${var.password}"
     elevated_user     = "${var.username}"
     script            = "${path.root}/scripts/sysprep.ps1"
     timeout           = "5m"
-  }
 
-}
+  } */
+  }
