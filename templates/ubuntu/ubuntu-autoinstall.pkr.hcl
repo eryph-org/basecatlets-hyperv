@@ -1,3 +1,16 @@
+packer {
+  required_plugins {
+    chef = {
+      version = " >= 1.0.0"      
+      source  = "github.com/bdwyertech/chef"
+    }
+    hyperv = {
+      version = " >= 1.1.0"
+      source  = "github.com/hashicorp/hyperv"
+    }
+  }
+}
+
 variable "build_directory" {
   type    = string
   default = "../../builds"
