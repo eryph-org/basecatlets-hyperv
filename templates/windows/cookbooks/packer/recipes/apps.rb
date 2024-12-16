@@ -60,6 +60,7 @@ Get-AppXProvisionedPackage -Online | ForEach-Object {
     'Microsoft.WindowsFeedbackHub'
     'Microsoft.WindowsMaps'
     'Microsoft.WindowsSoundRecorder'
+    'MicrosoftWindows.Client.WebExperience'
 #  keep windows store 'Microsoft.WindowsStore' 
     'Microsoft.Xbox.TCUI'
     'Microsoft.XboxApp'
