@@ -11,6 +11,8 @@ autoinstall:
     - systemctl stop ssh
   ssh:
     install-server: true
+  refresh-installer:
+    update: true
   packages:
     - linux-azure
   storage:
