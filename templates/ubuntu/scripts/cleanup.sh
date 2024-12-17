@@ -30,6 +30,7 @@ echo "remove all development packages"
 dpkg --list \
     | awk '{ print $2 }' \
     | grep -- '-dev\(:[a-z0-9]\+\)\?$' \
+    | grep -v -- 'systemd-dev' \
     | xargs apt-get -y purge;
 
 echo "remove docs packages"
@@ -61,10 +62,10 @@ apt-get -y purge command-not-found-data || true;
 # Exclude the files we don't need w/o uninstalling linux-firmware
 echo "Setup dpkg excludes for linux-firmware"
 cat <<_EOF_ | cat >> /etc/dpkg/dpkg.cfg.d/excludes
-#BENTO-BEGIN
+#ERYPH-BEGIN
 path-exclude=/lib/firmware/*
 path-exclude=/usr/share/doc/linux-firmware/*
-#BENTO-END
+#ERYPH-END
 _EOF_
 
 echo "delete the massive firmware files"

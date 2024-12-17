@@ -8,6 +8,6 @@ HOSTNAME=`hostname`
 sed -i "/${HOSTNAME}/d" /etc/hosts
 
 rm /etc/cloud/cloud.cfg.d/99-installer.cfg
-rm /etc/cloud/cloud.cfg.d/subiquity-disable-cloudinit-networking.cfg
+rm -f -- /etc/cloud/cloud.cfg.d/subiquity-disable-cloudinit-networking.cfg
 
 cloud-init clean
