@@ -20,23 +20,15 @@ if (($PSVersionTable.PSEdition -ne 'Desktop') -and ($build -lt 22000)) {
     Import-Module Appx -UseWindowsPowerShell
 }
 
-# remove all the provisioned appx packages.
-# NB some packages fail to be removed and thats OK.
-Get-AppXProvisionedPackage -Online | ForEach-Object {
-    Write-Host "Removing the $($_.PackageName) provisioned appx package..."
-    try {
-        $_ | Remove-AppxProvisionedPackage -Online | Out-Null
-    } catch {
-        Write-Output "WARN Failed to remove appx: $_"
-    }
-}
-
-# remove appx packages.
+# remove appx packages
+# we only remove the appx packages that are outdated and for end-user experience only.
 # NB some packages fail to be removed and thats OK.
 # see https://docs.microsoft.com/en-us/windows/application-management/apps-in-windows-10
 @(
     'Clipchamp.Clipchamp'
+    'Microsoft.BingNews'
     'Microsoft.BingWeather'
+    'Microsoft.GamingApp'
     'Microsoft.GetHelp'
     'Microsoft.Getstarted'
     'Microsoft.Microsoft3DViewer'
@@ -51,6 +43,7 @@ Get-AppXProvisionedPackage -Online | ForEach-Object {
     'Microsoft.Services.Store.Engagement'
     'Microsoft.SkypeApp'
     'Microsoft.StorePurchaseApp'
+    'Microsoft.Todos'
     'Microsoft.Wallet'
     'Microsoft.Windows.Photos'
     'Microsoft.WindowsAlarms'
@@ -60,7 +53,7 @@ Get-AppXProvisionedPackage -Online | ForEach-Object {
     'Microsoft.WindowsFeedbackHub'
     'Microsoft.WindowsMaps'
     'Microsoft.WindowsSoundRecorder'
-    'MicrosoftWindows.Client.WebExperience'
+#  keep 'MicrosoftWindows.Client.WebExperience'
 #  keep windows store 'Microsoft.WindowsStore' 
     'Microsoft.Xbox.TCUI'
     'Microsoft.XboxApp'
@@ -71,12 +64,14 @@ Get-AppXProvisionedPackage -Online | ForEach-Object {
     'Microsoft.YourPhone'
     'Microsoft.ZuneMusic'
     'Microsoft.ZuneVideo'
+    'MicrosoftTeams'
 ) | ForEach-Object {
     $appx = Get-AppxPackage -AllUsers $_
     if ($appx) {
-        Write-Host "Removing the $($appx.Name) appx package..."
+        Write-Output "Removing the $($appx.Name) appx package..."
         try {
-            $appx | Remove-AppxPackage -AllUsers
+            $appx | Remove-AppxPackage -AllUsers -ErrorAction Continue
+            $appx | % { Remove-AppxProvisionedPackage -Online -PackageName $_.PackageFullName -AllUsers -ErrorAction Continue }
         } catch {
             Write-Output "WARN Failed to remove appx: $_"
         }

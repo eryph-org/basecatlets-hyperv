@@ -15,17 +15,7 @@ set-ItemProperty -path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlo
 Write-Host "Removing appx packages for current user"
 
 # prevent appx issue: https://learn.microsoft.com/de-de/troubleshoot/windows-client/deployment/sysprep-fails-remove-or-update-store-apps
-$packages = Get-AppxPackage
-$packages | Remove-AppxPackage -ErrorAction SilentlyContinue | Out-Null
-
-Get-AppXProvisionedPackage -Online | ForEach-Object {
-    Write-Host "Removing the $($_.PackageName) provisioned appx package..."
-    try {
-        $_ | Remove-AppxProvisionedPackage -Online | Out-Null
-    } catch {
-        Write-Output "WARN Failed to remove appx: $_"
-    }
-}
+Get-AppxPackage | Remove-AppxPackage -ErrorAction SilentlyContinue | Out-Null
 
 Write-Host "Optimizing Drive"
 Optimize-Volume -DriveLetter C

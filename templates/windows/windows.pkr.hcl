@@ -142,15 +142,18 @@ build {
 
   provisioner "windows-restart" {}
   
-  /*
-  this script is embedded in prepare_sysprep.ps1 
-  uncomment this block if you would like to see script output for diagnostics
+  
+  //this script is embedded in prepare_sysprep.ps1 
+  //uncomment this block if you would like to see script output for diagnostics
 
+  /*
   provisioner "powershell" {
     elevated_password = "${var.password}"
     elevated_user     = "${var.username}"
     script            = "${path.root}/scripts/sysprep.ps1"
     timeout           = "15m"
 
-  } */
   }
+  */
+
+}

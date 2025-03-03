@@ -52,6 +52,12 @@ variable "componentElement" {
   default = ""
 }
 
+variable "oobeSystemComponents" {
+  type    = string
+  default = ""
+}
+
+
 variable "override_tpm_enabled" {
   type    = bool
   default = false
@@ -73,6 +79,7 @@ source "file" "unattended_file" {
         username           = "${var.username}"
         password           = "${var.password}",
         componentElement   = "${var.componentElement}"
+        oobeSystemComponents = "${var.oobeSystemComponents}"
     } )
   target  = "${var.target_path}/Autounattend.xml"
 }
