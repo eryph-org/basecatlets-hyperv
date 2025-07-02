@@ -13,6 +13,8 @@ param(
         'winsrv2025-standard',
         'winsrv2025-standardcore',
         'winsrv2025-datacenter',
+        'win10-1507-enterprise',
+        'win10-1607-enterprise',
         'win10-2004-enterprise',
         'win10-20h2-enterprise',
         'win11-21h1-enterprise',

@@ -106,6 +106,12 @@ build {
     version        = 17
   }
 
+/*
+   provisioner "breakpoint" {
+    disable = false
+    note    = "this is a breakpoint"
+  }
+*/
   provisioner "windows-restart" {
   }
 

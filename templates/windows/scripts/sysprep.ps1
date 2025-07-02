@@ -116,17 +116,53 @@ Remove-Item $FilePath
 Write-Host "CHECKPOINT_03: Cleanup completed"
 
 Write-Host "Randomize Administrator password and disable account"
+
+$currentVersionKey = Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion'
+$build = [int]$currentVersionKey.CurrentBuildNumber
+
 Add-Type -AssemblyName System.Web
 $adminPasswordPlain = [System.Web.Security.Membership]::GeneratePassword(30,4)
-$adminPassword = ConvertTo-SecureString $adminPasswordPlain -AsPlainText -Force
-$adminAccount = Get-LocalUser Administrator
-$adminAccount | Set-LocalUser -Password $adminPassword
-$adminAccount | Disable-LocalUser
+
+if($build -eq 10240) {
+    # Set the administrator password using 'net user'
+    $adminUsername = "Administrator"
+    net user $adminUsername $adminPasswordPlain
+
+    # Disable the administrator account using WMI
+    $adminAccount = Get-WmiObject -Class Win32_UserAccount -Filter "Name='$adminUsername' AND LocalAccount=True"
+    if ($adminAccount) {
+        $adminAccount.Disabled = $true
+        $adminAccount.Put()
+    } else {
+        Write-Error "Administrator account not found."
+    }
+
+} else{
+
+    $adminPassword = ConvertTo-SecureString $adminPasswordPlain -AsPlainText -Force
+    $adminAccount = Get-LocalUser Administrator
+    $adminAccount | Set-LocalUser -Password $adminPassword
+    $adminAccount | Disable-LocalUser
+}
 
 Write-Host "Image building completed. Next step will disable packer user account and shutdown the machine"
 
-$packerAccount = Get-LocalUser packer -ErrorAction Continue
-$packerAccount | Disable-LocalUser -ErrorAction Continue
+
+if($build -eq 10240) {
+
+    $packerAccount = Get-WmiObject -Class Win32_UserAccount -Filter "Name='packer' AND LocalAccount=True"
+    if ($packerAccount) {
+        $packerAccount.Disabled = $true
+        $packerAccount.Put()
+    } else {
+        Write-Error "Packer account not found."
+    }
+
+}
+else{
+    $packerAccount = Get-LocalUser packer -ErrorAction Continue
+    $packerAccount | Disable-LocalUser -ErrorAction Continue
+}
 
 Write-Host "CHECKPOINT_04: Shutdown"
 Stop-Computer -Force -ErrorAction Continue

@@ -1,3 +1,7 @@
 /**/packer_cache/*
 builds/*
 templates/windows/crash.log
+__azurite_db_queue__.json
+__azurite_db_queue_extent__.json
+__azurite_db_table__.json
+AzuriteConfig
