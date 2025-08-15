@@ -1,8 +1,8 @@
 template = "ubuntu-24.04"
 mirror_directory = "24.04"
 boot_wait = "3s"
-iso_name = "ubuntu-24.04.1-live-server-amd64.iso"
-iso_checksum = "sha256:e240e4b801f7bb68c20d1356b60968ad0c33a41d00d828e74ceb3364a0317be9"
+iso_name = "ubuntu-24.04.2-live-server-amd64.iso"
+iso_checksum = "sha256:D6DAB0C3A657988501B4BD76F1297C053DF710E06E0C3AECE60DEAD24F270B4D"
 boot_cmds = [
     " <wait>", 
     " <wait>", 

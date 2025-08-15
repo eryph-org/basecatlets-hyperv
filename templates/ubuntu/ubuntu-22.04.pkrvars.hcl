@@ -1,8 +1,8 @@
 
 template = "ubuntu-22.04"
 mirror_directory = "22.04"
-iso_name = "ubuntu-22.04.3-live-server-amd64.iso"
-iso_checksum = "sha256:a4acfda10b18da50e2ec50ccaf860d7f20b389df8765611142305c0e911d16fd"
+iso_name = "ubuntu-22.04.5-live-server-amd64.iso"
+iso_checksum = "sha256:9BC6028870AEF3F74F4E16B900008179E78B130E6B0B9A140635434A46AA98B0"
 boot_cmds = [
     " <wait>", 
     " <wait>", 

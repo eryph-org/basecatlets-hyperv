@@ -2,7 +2,8 @@
     {"ubuntu": [
         "ubuntu-20.04",
         "ubuntu-22.04",
-        "ubuntu-24.04"
+        "ubuntu-24.04",
+        "ubuntu-25.04"
     ],
     "windows": [
         "winsrv2016-standard",

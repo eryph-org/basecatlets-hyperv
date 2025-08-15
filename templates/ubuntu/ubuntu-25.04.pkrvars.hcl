@@ -1,8 +1,8 @@
-template = "ubuntu-23.04"
-mirror_directory = "23.04"
+template = "ubuntu-25.04"
+mirror_directory = "25.04"
 boot_wait = "3s"
-iso_name = "ubuntu-23.04-live-server-amd64.iso"
-iso_checksum = "sha256:c7cda48494a6d7d9665964388a3fc9c824b3bef0c9ea3818a1be982bc80d346b"
+iso_name = "ubuntu-25.04-live-server-amd64.iso"
+iso_checksum = "sha256:8B44046211118639C673335A80359F4B3F0D9E52C33FE61C59072B1B61BDECC5"
 boot_cmds = [
     " <wait>", 
     " <wait>", 
