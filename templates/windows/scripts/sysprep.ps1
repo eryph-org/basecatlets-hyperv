@@ -77,7 +77,7 @@ if($sysprep_succeded -ne $true){
 ## -----------------------------------------------
 
 # disable network discovery
-New-Item -Path "HKLM:\System\CurrentControlSet\Control\Network\NewNetworkWindowOff\" | Out-Null
+New-Item -Path "HKLM:\System\CurrentControlSet\Control\Network\NewNetworkWindowOff\" -ErrorAction SilentlyContinue | Out-Null
 
 
 # remove page file - disabled for now as there is currently no automatic re-enable on first boot
