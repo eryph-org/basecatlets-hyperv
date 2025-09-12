@@ -3,6 +3,9 @@ windows_package 'cloudinit' do
   source 'https://www.cloudbase.it/downloads/CloudbaseInitSetup_x64.msi'
 end
 
+# Apply Eryph patches to cloudbase-init
+include_recipe 'packer::cloudbase_patches'
+
 cookbook_file 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\cloudbase-init.conf' do
   source 'cloudbase-init.conf'
 end

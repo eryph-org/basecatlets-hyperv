@@ -5,7 +5,10 @@ param (
     [string]$ExportPath,  # Path to Hyper-V VM export directory
     
     [Parameter(Mandatory=$false)]
-    [switch]$Force  # Skip confirmation prompts
+    [switch]$Force,  # Skip confirmation prompts
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$Azure  # Export for Azure (use VHD format instead of VHDX)
 )
 
 $ErrorActionPreference = 'Stop'
@@ -87,6 +90,7 @@ if ($checkpoints) {
 
 # Get all hard drives
 $hardDrives = Get-VMHardDiskDrive -VM $vm
+$consolidationCount = 0
 Write-Host ""
 Write-Host "Processing $($hardDrives.Count) disk(s)..."
 
@@ -103,13 +107,18 @@ foreach ($hdd in $hardDrives) {
         Write-Host "    [!] Differencing disk detected"
         Write-Host "    Parent: $(Split-Path $vhd.ParentPath -Leaf)"
         
-        # Create a new consolidated disk
-        $newPath = Join-Path $vhdDir "$([System.IO.Path]::GetFileNameWithoutExtension($vhdName))_merged.vhdx"
+        # Create a new consolidated disk - use VHD format for Azure, VHDX otherwise
+        $extension = if ($Azure) { "vhd" } else { "vhdx" }
+        $newPath = Join-Path $vhdDir "$([System.IO.Path]::GetFileNameWithoutExtension($vhdName))_merged.$extension"
         
-        Write-Host "    Merging to new disk..."
+        Write-Host "    Merging to new disk (format: $($extension.ToUpper()))..."
         
         # Convert to a new disk (this merges the chain)
-        Convert-VHD -Path $vhdPath -DestinationPath $newPath -VHDType Dynamic
+        if ($Azure) {
+            Convert-VHD -Path $vhdPath -DestinationPath $newPath -VHDType Dynamic -VHDFormat VHD
+        } else {
+            Convert-VHD -Path $vhdPath -DestinationPath $newPath -VHDType Dynamic
+        }
         
         # Replace the disk in the VM
         Remove-VMHardDiskDrive -VMHardDiskDrive $hdd
@@ -134,8 +143,14 @@ foreach ($hdd in $hardDrives) {
             Remove-Item -Path $parentPath -Force
         }
         
-        # Rename merged disk back to original name
-        Move-Item -Path $newPath -Destination $vhdPath -Force
+        # Rename merged disk - keep new extension if converting to VHD for Azure
+        if ($Azure -and $vhdPath.EndsWith('.vhdx')) {
+            $finalPath = $vhdPath -replace '\.vhdx$', '.vhd'
+            Move-Item -Path $newPath -Destination $finalPath -Force
+        } else {
+            $finalPath = $vhdPath
+            Move-Item -Path $newPath -Destination $finalPath -Force
+        }
         
         # Update VM to use the renamed disk
         Remove-VMHardDiskDrive -VMHardDiskDrive (Get-VMHardDiskDrive -VM $vm | Where-Object { $_.Path -eq $newPath })
@@ -143,23 +158,45 @@ foreach ($hdd in $hardDrives) {
                             -ControllerType $hdd.ControllerType `
                             -ControllerNumber $hdd.ControllerNumber `
                             -ControllerLocation $hdd.ControllerLocation `
-                            -Path $vhdPath
+                            -Path $finalPath
         
         Write-Host "    [OK] Disk consolidated"
+        $consolidationCount++
     } else {
         Write-Host "    [OK] Standalone disk (no merge needed)"
     }
 }
 
+# Check if any disks were actually consolidated
+if ($consolidationCount -eq 0) {
+    Write-Host ""
+    Write-Host "No disk consolidation was needed - skipping re-export"
+    
+    # Remove the temporary VM
+    Write-Host "Cleaning up temporary VM..."
+    Remove-VM -VM $vm -Force
+    
+    Write-Host ""
+    Write-Host "========================================="
+    Write-Host "[OK] Export already optimized!"
+    Write-Host "No differencing disks found - export is ready for repacking."
+    Write-Host "========================================="
+    exit 0
+}
+
 # Export the VM again with consolidated disks
 Write-Host ""
-Write-Host "Re-exporting VM with consolidated disks..."
+Write-Host "Re-exporting VM with consolidated disks ($consolidationCount disk(s) were merged)..."
 
 $exportTempPath = Join-Path $env:TEMP "VMExportTemp_$(Get-Random)"
 New-Item -ItemType Directory -Path $exportTempPath -Force | Out-Null
 
 try {
     Export-VM -VM $vm -Path $exportTempPath
+    
+    # Remove the temporary VM first to release file locks
+    Write-Host "Removing temporary VM to release file locks..."
+    Remove-VM -VM $vm -Force
     
     # Get the exported VM folder
     $exportedFolder = Get-ChildItem -Path $exportTempPath -Directory | Select-Object -First 1
@@ -180,9 +217,7 @@ try {
     }
 }
 
-# Remove the temporary VM
-Write-Host "Cleaning up temporary VM..."
-Remove-VM -VM $vm -Force
+# VM already removed above to release file locks
 
 Write-Host ""
 Write-Host "========================================="
@@ -190,3 +225,5 @@ Write-Host "[OK] Export prepared successfully!"
 Write-Host "All differencing disks have been consolidated."
 Write-Host "The export is now ready for repacking."
 Write-Host "========================================="
+
+exit 0

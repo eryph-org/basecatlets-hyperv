@@ -31,6 +31,14 @@ execute 'clean SxS' do
   live_stream true
 end
 
+# Stop Azure services for cleanup
+%w(WindowsAzureGuestAgent WindowsAzureTelemetryService RdAgent).each do |azure_service|
+  service azure_service do
+    action :stop
+    ignore_failure true
+  end
+end
+
 powershell_script 'remove unnecesary directories' do
   code <<-EOH
   @(
@@ -38,7 +46,10 @@ powershell_script 'remove unnecesary directories' do
       "$env:localappdata\\temp\\*",
       "$env:windir\\logs",
       "$env:windir\\temp",
-      "$env:windir\\winsxs\\manifestcache"
+      "$env:windir\\winsxs\\manifestcache",
+      "C:\\WindowsAzure\\Logs",
+      "C:\\Packages\\Plugins",
+      "C:\\Windows\\Panther\\FastCleanup"
   ) | % {
           if(Test-Path $_) {
               Write-Host "Removing $_"
@@ -50,6 +61,12 @@ powershell_script 'remove unnecesary directories' do
           }
       }
   EOH
+end
+
+# Uninstall Git for Windows (installed for patching)
+windows_package 'git' do
+  action :remove
+  ignore_failure true
 end
 
 # clean all of the event logs

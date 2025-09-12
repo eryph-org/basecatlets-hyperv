@@ -88,11 +88,63 @@ find /var/log -type f -exec truncate --size=0 {} \;
 echo "blank netplan machine-id (DUID) so machines get unique ID generated on boot"
 truncate -s 0 /etc/machine-id
 
+# Remove machine-specific SSH keys (will be regenerated on first boot)
+echo "remove SSH host keys for security (regenerated on first boot)"
+rm -f /etc/ssh/ssh_host_*
+
+# Clear machine-specific D-Bus machine ID
+rm -f /var/lib/dbus/machine-id
+
 echo "remove the contents of /tmp and /var/tmp"
 rm -rf /tmp/* /var/tmp/*
 
 echo "force a new random seed to be generated"
 rm -f /var/lib/systemd/random-seed
+
+# Ensure Hyper-V modules are loaded for all hypervisor environments
+echo "ensure Hyper-V modules are configured for loading"
+cat >> /etc/modules << 'EOF'
+# Hyper-V modules for cloud/hypervisor compatibility
+hv_vmbus
+hv_netvsc
+hv_storvsc
+hv_utils
+hv_balloon
+EOF
+
+# Configure initramfs to include Hyper-V drivers
+cat >> /etc/initramfs-tools/modules << 'EOF'
+# Hyper-V modules for cloud compatibility
+hv_vmbus
+hv_netvsc
+hv_storvsc
+hv_utils
+hv_balloon
+EOF
+
+# Update initramfs
+echo "updating initramfs with Hyper-V modules"
+update-initramfs -u
+
+# Enable NTP for accurate time synchronization (critical for cloud)
+echo "enabling NTP time synchronization"
+timedatectl set-ntp true
+
+# Optimize systemd services for cloud boot
+systemctl enable systemd-networkd-wait-online.service
+systemctl enable systemd-timesyncd.service
+
+# Configure systemd to handle cloud metadata properly
+mkdir -p /etc/systemd/system/cloud-init-local.service.d
+cat > /etc/systemd/system/cloud-init-local.service.d/cloud-init-local.conf << 'EOF'
+[Unit]
+# Ensure cloud-init runs early enough for proper initialization
+Before=systemd-networkd.service
+EOF
+
+# Ensure proper permissions on cloud-init directories
+chmod 700 /var/lib/cloud
+chmod 755 /etc/cloud
 
 echo "clear the history so our install isn't there"
 rm -f /root/.wget-hsts

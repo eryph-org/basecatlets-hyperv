@@ -14,3 +14,15 @@ end
 execute 'Turn off monitor timeout on DC power' do
   command 'powercfg -Change -monitor-timeout-dc 0'
 end
+
+# Set time to UTC - essential for cloud environments
+registry_key 'HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation' do
+  values [
+    {
+      name: 'RealTimeIsUniversal',
+      type: :dword,
+      data: 1
+    }
+  ]
+  action :create_if_missing
+end

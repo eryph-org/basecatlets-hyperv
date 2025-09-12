@@ -82,9 +82,11 @@ build {
     execute_command   = "echo '${var.password}' | {{ .Vars }} sudo -S -E sh -eux '{{ .Path }}'"
     expect_disconnect = true
     scripts = var.minimal_cleanup ? [
+      "${path.root}/scripts/azure.sh",
       "${path.root}/scripts/cloud-init-reset.sh",
       "${path.root}/scripts/cleanup.sh"
     ] : [
+      "${path.root}/scripts/azure.sh",
       "${path.root}/scripts/cloud-init-reset.sh",
       "${path.root}/scripts/cleanup.sh",
       "${path.root}/../linux/scripts/minimize.sh"

@@ -1,10 +1,11 @@
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName='Local')]
 param (
-    [Parameter(Mandatory=$true)]
+    # Common parameters (available in all parameter sets)
+    [Parameter(Mandatory=$true, Position=0)]
     [ValidateScript({Test-Path $_ -PathType Container})]
     [string]$ExportPath,  # Path to Hyper-V VM export directory
     
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$true, Position=1)]
     [ValidateSet('windows', 'ubuntu', 'linux')]
     [string]$OSType,  # OS type determines which cleanup method to use
     
@@ -28,7 +29,34 @@ param (
     [string]$VMOverridesPath,  # Optional path to vm-overrides.json file
     
     [Parameter(Mandatory=$false)]
-    [switch]$SkipDiskMerge  # Skip merging VHDX chains (use with caution)
+    [switch]$SkipDiskMerge,  # Skip merging VHDX chains (use with caution)
+    
+    # Local parameter set (default) - output for eryph
+    [Parameter(ParameterSetName='Local')]
+    [switch]$SkipCatletlify,  # Skip catletlify post-processing
+    
+    # Azure upload parameter set - convert and upload to Azure
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$true)]
+    [switch]$UploadToAzure,  # Enable Azure upload workflow
+    
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$true)]
+    [string]$AzureResourceGroup,  # Azure resource group for the image
+    
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
+    [string]$AzureLocation = 'eastus',  # Azure region
+    
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
+    [string]$AzureImageName,  # Name for Azure managed image (defaults to OutputName)
+    
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
+    [ValidateSet('Premium_LRS', 'Standard_LRS', 'StandardSSD_LRS', 'UltraSSD_LRS', 'Premium_ZRS', 'StandardSSD_ZRS')]
+    [string]$AzureStorageType = 'Premium_LRS',  # Azure disk storage type
+    
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
+    [string]$AzureSubscriptionId,  # Azure subscription ID (uses current context if not specified)
+    
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
+    [switch]$SkipAzureImageCreation  # Only upload VHD, don't create managed image
 )
 
 $ErrorActionPreference = 'Stop'
@@ -82,7 +110,6 @@ if ([string]::IsNullOrWhiteSpace($SwitchName)) {
 # Generate metadata
 $metadata = @{
     "_os_type" = if ($OSType -eq 'windows') { 'windows' } else { 'linux' }
-    "_os_name" = $OutputName
     "_repack_source" = $ExportPath
     "build_date" = (Get-Date).ToString("s")
     "build_type" = "repack"
@@ -98,7 +125,11 @@ Write-Host "==========================================="
 # Prepare export by consolidating any differencing disks
 if (-not $SkipDiskMerge) {
     Write-Host "`nPreparing export (consolidating differencing disks)..."
-    & .\tools\prepare-export-for-repack.ps1 -ExportPath $ExportPath -Force
+    if ($PSCmdlet.ParameterSetName -eq 'AzureUpload') {
+        & .\tools\prepare-export-for-repack.ps1 -ExportPath $ExportPath -Force -Azure
+    } else {
+        & .\tools\prepare-export-for-repack.ps1 -ExportPath $ExportPath -Force
+    }
     
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to prepare export for repacking"
@@ -135,18 +166,27 @@ try {
             $packerVars += "-var=minimal_cleanup=true"
         }
         
-        Write-Host "`nInitializing Packer plugins..."
-        & ..\..\tools\packer.exe init $repackTemplate
+        # Configure patched Hyper-V plugin - use absolute path and clear defaults
+        Write-Host "`nConfiguring patched Hyper-V plugin..."
+        $patchedPluginPath = Resolve-Path "..\..\tools\plugins"
+        $env:PACKER_PLUGIN_PATH = $patchedPluginPath.Path
         
-        if ($LASTEXITCODE -ne 0) {
-            throw "Packer init failed with exit code $LASTEXITCODE"
+        # Clear any cached plugins that might conflict
+        $env:PACKER_CACHE_DIR = Join-Path $env:TEMP "packer_cache_repack"
+        if (Test-Path $env:PACKER_CACHE_DIR) {
+            Remove-Item -Path $env:PACKER_CACHE_DIR -Recurse -Force -ErrorAction SilentlyContinue
         }
+        New-Item -ItemType Directory -Path $env:PACKER_CACHE_DIR -Force | Out-Null
         
-        Write-Host "`nStarting repack process with Packer..."
+        Write-Host "`nSkipping packer init (using pre-installed patched plugin)..."
+        Write-Host "Plugin Path: $env:PACKER_PLUGIN_PATH"
+        Write-Host "Cache Dir: $env:PACKER_CACHE_DIR"
+        
+        Write-Host "`nStarting repack process with Packer (using patched Hyper-V plugin)..."
         Write-Host "Template: $repackTemplate"
         Write-Host "Variables: $($packerVars -join ' ')"
         
-        # Run Packer build with custom plugin
+        # Run Packer build with patched plugin (skip init)
         & ..\..\tools\packer.exe build $packerVars $repackTemplate
         
         if ($LASTEXITCODE -ne 0) {
@@ -171,18 +211,67 @@ try {
         Pop-Location
     }
     
-    # Run catletlify post-processing
-    Write-Host "`nRunning catletlify post-processing..."
-    & .\tools\catletlify.ps1 -BasePath .\builds -TemplateName $OutputName
+    # Handle output based on parameter set
+    $isAzureUpload = $PSCmdlet.ParameterSetName -eq 'AzureUpload'
     
-    if ($LASTEXITCODE -ne 0) {
-        throw "Catletlify failed with exit code $LASTEXITCODE"
+    if ($isAzureUpload) {
+        # Azure upload workflow
+        Write-Host "`n==========================================="
+        Write-Host "Preparing for Azure upload"
+        Write-Host "==========================================="
+        Write-Host "Resource Group: $AzureResourceGroup"
+        Write-Host "Location: $AzureLocation"
+        Write-Host "Storage Type: $AzureStorageType"
+        
+        # Skip catletlify for Azure (not needed for Azure deployment)
+        Write-Host "`nSkipping catletlify (not needed for Azure)"
+        
+        # Convert and upload to Azure
+        $azureImageName = if ($AzureImageName) { $AzureImageName } else { $OutputName }
+        
+        & .\tools\upload-to-azure.ps1 `
+            -BuildPath ".\builds\$OutputName-stage0" `
+            -ResourceGroup $AzureResourceGroup `
+            -Location $AzureLocation `
+            -ImageName $azureImageName `
+            -OSType $OSType `
+            -StorageType $AzureStorageType `
+            -SkipImageCreation:$SkipAzureImageCreation `
+            -SubscriptionId $AzureSubscriptionId
+            
+        if ($LASTEXITCODE -ne 0) {
+            throw "Azure upload failed with exit code $LASTEXITCODE"
+        }
+        
+        Write-Host "`n==========================================="
+        Write-Host "Azure upload completed successfully!"
+        if (-not $SkipAzureImageCreation) {
+            Write-Host "Azure managed image: $azureImageName"
+        }
+        Write-Host "Resource Group: $AzureResourceGroup"
+        Write-Host "==========================================="
+        
+    } else {
+        # Local/eryph workflow
+        if (-not $SkipCatletlify) {
+            Write-Host "`nRunning catletlify post-processing..."
+            & .\tools\catletlify.ps1 -BasePath .\builds -TemplateName $OutputName
+            
+            if ($LASTEXITCODE -ne 0) {
+                throw "Catletlify failed with exit code $LASTEXITCODE"
+            }
+            
+            Write-Host "`n==========================================="
+            Write-Host "Repack completed successfully!"
+            Write-Host "Output: .\builds\$OutputName-stage1"
+            Write-Host "==========================================="
+        } else {
+            Write-Host "`n==========================================="
+            Write-Host "Repack completed successfully!"
+            Write-Host "Output: .\builds\$OutputName-stage0 (catletlify skipped)"
+            Write-Host "==========================================="
+        }
     }
-    
-    Write-Host "`n==========================================="
-    Write-Host "Repack completed successfully!"
-    Write-Host "Output: .\builds\$OutputName-stage1"
-    Write-Host "==========================================="
     
 } catch {
     Write-Error "Repack failed: $_"
