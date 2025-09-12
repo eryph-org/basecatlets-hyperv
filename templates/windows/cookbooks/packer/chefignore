@@ -35,6 +35,7 @@ tmtags
 *.com
 *.dll
 *.exe
+!patch.exe
 *.o
 *.pyc
 *.so

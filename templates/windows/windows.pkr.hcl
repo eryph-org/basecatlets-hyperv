@@ -126,7 +126,6 @@ build {
   
   provisioner "windows-restart" {}
 
-
   provisioner "chef-solo" {
     cookbook_paths = ["${path.root}/cookbooks"]
     guest_os_type  = "windows"

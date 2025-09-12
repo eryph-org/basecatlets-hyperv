@@ -30,6 +30,19 @@ $overridesFile = New-TemporaryFile
 Push-Location $PSScriptRoot
 
 try{
+  # Configure patched Hyper-V plugin
+  $patchedPluginPath = Resolve-Path "..\..\tools\plugins"
+  $env:PACKER_PLUGIN_PATH = $patchedPluginPath.Path
+  
+  # Clear any cached plugins that might conflict
+  $env:PACKER_CACHE_DIR = Join-Path $env:TEMP "packer_cache_build_$template_name"
+  if (Test-Path $env:PACKER_CACHE_DIR) {
+      Remove-Item -Path $env:PACKER_CACHE_DIR -Recurse -Force -ErrorAction SilentlyContinue
+  }
+  New-Item -ItemType Directory -Path $env:PACKER_CACHE_DIR -Force | Out-Null
+  
+  Write-Host "Using patched Hyper-V plugin from: $env:PACKER_PLUGIN_PATH"
+
   ..\..\tools\packer.exe init .\ubuntu-autoinstall.pkr.hcl
   ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=vm_overrides_path="${overridesFile}" gen-files.pkr.hcl
   ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=hyperv_switch="${SwitchName}" ubuntu-autoinstall.pkr.hcl  

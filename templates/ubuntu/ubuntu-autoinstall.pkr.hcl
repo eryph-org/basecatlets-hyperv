@@ -151,7 +151,9 @@ build {
        "${path.root}/scripts/update.sh", 
        "${path.root}/scripts/networking.sh", 
        "${path.root}/scripts/hyperv.sh",
-        "${path.root}/scripts/cloud-init.sh",
+       "${path.root}/scripts/azure.sh",
+       "${path.root}/../linux/scripts/eryph.sh",
+       "${path.root}/scripts/cloud-init.sh"
        ]
   }
 

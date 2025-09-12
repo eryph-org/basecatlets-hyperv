@@ -1,0 +1,14 @@
+diff --git a/cloudbaseinit/metadata/services/ovfservice.py b/cloudbaseinit/metadata/services/ovfservice.py
+index 7798c9a..fc73425 100644
+--- a/cloudbaseinit/metadata/services/ovfservice.py
++++ b/cloudbaseinit/metadata/services/ovfservice.py
+@@ -41,6 +41,9 @@ class OvfService(base.BaseMetadataService):
+         try:
+             self._get_ovf_env()
+             return True
++        except base.NotExistingMetadataException as ex:
++            LOG.debug("OVF metadata not found: %s. This is normal when no OVF drive is present.", ex)
++            return False
+         except Exception as ex:
+             LOG.exception(ex)
+             return False
