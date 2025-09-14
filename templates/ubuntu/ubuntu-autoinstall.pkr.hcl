@@ -123,7 +123,7 @@ source "hyperv-iso" "install" {
   iso_url            = "${var.mirror}/${var.mirror_directory}/${var.iso_name}"
   memory             = "${var.memory}"
   output_directory   = "${var.build_directory}/${var.template}-stage0"
-  shutdown_command   = "echo '${var.password}' | sudo -S shutdown -P now"
+  shutdown_command   = "echo '${var.password}' | sudo -S sh -c 'passwd -l ubuntu && shutdown -P now'"
   ssh_password       = "${var.password}"
   ssh_port           = 22
   ssh_timeout        = "10000s"
@@ -152,9 +152,15 @@ build {
        "${path.root}/scripts/networking.sh", 
        "${path.root}/scripts/hyperv.sh",
        "${path.root}/scripts/azure.sh",
-       "${path.root}/../linux/scripts/eryph.sh",
        "${path.root}/scripts/cloud-init.sh"
        ]
+  }
+
+  # Run eryph.sh with Python (respects shebang)
+  provisioner "shell" {
+     environment_vars  = ["http_proxy=${var.http_proxy}", "https_proxy=${var.https_proxy}", "no_proxy=${var.no_proxy}"]
+     execute_command   = "echo '${var.password}' | {{ .Vars }} sudo -S -E bash -c '{{ .Path }}'"
+     script            = "${path.root}/../linux/scripts/eryph.sh"
   }
 
   provisioner "shell" {
@@ -165,5 +171,6 @@ build {
         "${path.root}/scripts/cleanup.sh", 
         "${path.root}/../linux/scripts/minimize.sh"]
   }
+
 
   }

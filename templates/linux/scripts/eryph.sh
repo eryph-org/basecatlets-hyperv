@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import subprocess
 import urllib.request
 import tarfile
@@ -49,6 +50,24 @@ def install_eryph_guest_services():
             with tarfile.open('egs-linux.tar.gz', 'r:gz') as tar:
                 tar.extractall(path=install_path)
             os.remove('egs-linux.tar.gz')
+            
+            print("Creating systemd service file")
+            service_content = """[Unit]
+Description=eryph guest services
+
+[Service]
+Type=notify
+ExecStart=/opt/eryph/guest-services/bin/egs-service
+Environment="HOME=/root"
+Environment="TERM=xterm"
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+"""
+            with open('/etc/systemd/system/eryph-guest-services.service', 'w') as f:
+                f.write(service_content)
             
             print("Configuring and starting eryph guest services")
             subprocess.run(['systemctl', 'daemon-reload'], check=True)

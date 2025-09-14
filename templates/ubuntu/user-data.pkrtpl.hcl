@@ -15,6 +15,9 @@ autoinstall:
     update: true
   packages:
     - linux-azure
+  late-commands:
+    - curtin in-target -- apt-get install -y linux-tools-generic linux-cloud-tools-generic
+    - /sbin/reboot
   storage:
     layout:
       name: direct
