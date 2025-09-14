@@ -1,0 +1,23 @@
+# RHEL 9 variables for rhel-base.pkr.hcl
+# This is an example file - users must copy to rhel-9.pkrvars.hcl and provide their own ISO
+template = "rhel-9"
+distro_name = "RHEL"
+
+# RHEL 9 ISO - Users must provide their own from Red Hat Developer subscription
+# Download from: https://developers.redhat.com/products/rhel/download
+iso_name = "rhel-9-x86_64-dvd.iso"
+# Replace with your RHEL ISO path/URL - either local file:// or authenticated URL
+iso_url = "file:///path/to/your/rhel-9-x86_64-dvd.iso"
+# Replace with actual checksum from Red Hat
+iso_checksum = "sha256:your_actual_rhel_9_iso_checksum_here"
+
+# Boot command for RHEL 9 with kickstart
+boot_command = [
+  "<tab> inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg<enter><wait>"
+]
+
+# Default settings
+hostname = "rhel9"
+username = "admin"
+password = "admin"
+boot_wait = "10s"

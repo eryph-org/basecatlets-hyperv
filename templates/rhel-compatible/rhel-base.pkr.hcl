@@ -44,18 +44,13 @@ variable "iso_name" {
   type    = string
 }
 
+variable "iso_url" {
+  type    = string
+}
+
 variable "memory" {
   type    = string
   default = "2048"
-}
-
-variable "mirror" {
-  type    = string
-  default = "http://releases.ubuntu.com"
-}
-
-variable "mirror_directory" {
-  type    = string
 }
 
 variable "no_proxy" {
@@ -67,73 +62,69 @@ variable "template" {
   type    = string
 }
 
+variable "distro_name" {
+  type    = string
+}
 
 variable "username" {
   type    = string
-  default = "ubuntu"
+  default = "admin"
 }
 
- # Generated via: printf ubuntu | mkpasswd -m sha-512 -S ubuntu.. -s
+# Generated via: printf admin | mkpasswd -m sha-512 -S admin... -s
 variable "password_hash" {
   type    = string
-  default = "$6$ubuntu..$j8zaVg6twXS78j47B7CoujiRvJKBGzHvbFYu52nNcztBsKXqPbBABvfXX51gI/jlS6KH6TjvNxCJT6C9iosNE."
+  default = "$6$admin...$X8qPAWz6eUTLhC9b5VYd8XYLu8/iXJzxz7bZ1d4bB5h7oYe6LKCJfHJ.8iX2.iY7gD6l/XlV9U9Ol5bH/vV3/1"
 }
 
 variable "password" {
   type    = string
-  default = "ubuntu"
+  default = "admin"
 }
 
 variable "hostname" {
   type    = string
-  default = "ubuntu"
+  default = "rhel-compatible"
 }
 
-variable "boot_cmds" {
+variable "boot_command" {
   type    = list(string)
+  default = []
 }
 
 variable "boot_wait" {
   type    = string
-  default = "5s"
+  default = "10s"
 }
 
-
 locals {
-  http_directory  = "${path.root}/http"
+  http_directory = "${path.root}/http"
 }
 
 source "hyperv-iso" "install" {
-  boot_command       = var.boot_cmds
-  boot_wait          = "${var.boot_wait}"   
+  boot_command       = var.boot_command
+  boot_wait          = var.boot_wait
   communicator       = "ssh"
   disk_block_size    = 1
-  cpus               = "${var.cpus}"
-  disk_size          = "${var.disk_size}"
+  cpus               = var.cpus
+  disk_size          = var.disk_size
   headless           = true
   enable_secure_boot = true
   secure_boot_template = "MicrosoftUEFICertificateAuthority"
   generation         = "2"
   configuration_version = "8.0"
-  iso_checksum       = "${var.iso_checksum}"
-  iso_url            = "${var.mirror}/${var.mirror_directory}/${var.iso_name}"
-  memory             = "${var.memory}"
+  iso_checksum       = var.iso_checksum
+  iso_url            = var.iso_url
+  memory             = var.memory
   output_directory   = "${var.build_directory}/${var.template}-stage0"
-  shutdown_command   = "echo '${var.password}' | sudo -S sh -c 'passwd -l ubuntu && shutdown -P now'"
-  ssh_password       = "${var.password}"
+  shutdown_command   = "echo '${var.password}' | sudo -S sh -c 'passwd -l ${var.username} && shutdown -P now'"
+  ssh_password       = var.password
   ssh_port           = 22
   ssh_timeout        = "10000s"
-  ssh_username       = "${var.username}"
-  switch_name        = "${var.hyperv_switch}"
-  vm_name            = "${var.template}"
-  http_content = {
-    "/meta-data" = ""
-    "/user-data" = templatefile("${path.root}/user-data.pkrtpl.hcl", {
-        hostname = "${var.hostname}"
-        username = "${var.username}"
-        password_hash = "${var.password_hash}"
-    } )
-  }
+  ssh_username       = var.username
+  switch_name        = var.hyperv_switch
+  vm_name            = var.template
+  http_directory     = local.http_directory
 }
 
 build {
@@ -144,8 +135,8 @@ build {
      execute_command   = "echo '${var.password}' | {{ .Vars }} sudo -S -E sh -eux '{{ .Path }}'"
      expect_disconnect = true
      scripts           = [
-       "${path.root}/scripts/update.sh", 
-       "${path.root}/scripts/networking.sh", 
+       "${path.root}/scripts/update.sh",
+       "${path.root}/scripts/networking.sh",
        "${path.root}/scripts/hyperv.sh",
        "${path.root}/scripts/azure.sh",
        "${path.root}/scripts/cloud-init.sh"
@@ -164,9 +155,7 @@ build {
       execute_command   = "echo '${var.password}' | {{ .Vars }} sudo -S -E sh -eux '{{ .Path }}'"
       expect_disconnect = true
       scripts           = [
-        "${path.root}/scripts/cleanup.sh", 
+        "${path.root}/scripts/cleanup.sh",
         "${path.root}/../linux/scripts/minimize.sh"]
   }
-
-
-  }
+}
