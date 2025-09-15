@@ -2,18 +2,27 @@
 template = "oracle-9"
 distro_name = "Oracle Linux"
 
-# Oracle Linux 9.4 (latest as of 2024)
-iso_name = "OracleLinux-R9-U4-x86_64-dvd.iso"
-iso_url = "https://yum.oracle.com/ISOS/OracleLinux/OL9/u4/x86_64/OracleLinux-R9-U4-x86_64-dvd.iso"
-iso_checksum = "sha256:a7b6c5d4e3f2a1b9c8d7e6f5a4b3c2d1e0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5"
+# Oracle Linux 9.5
+iso_name = "OracleLinux-R9-U5-x86_64-dvd.iso"
+iso_url = "https://yum.oracle.com/ISOS/OracleLinux/OL9/u5/x86_64/OracleLinux-R9-U5-x86_64-dvd.iso"
+iso_checksum = "sha256:C2FA76C502CF1D93DFBD084D494D963AB7EA0A6F5535A083B8547B34037E88E1"
 
-# Boot command for Oracle Linux 9 with kickstart
+# Boot command for Oracle Linux 9 with kickstart (UEFI for Hyper-V Gen 2)
 boot_command = [
-  "<tab> inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg<enter><wait>"
+  "c",
+  "setparams 'kickstart'<enter>",
+  "linuxefi /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=OL-9-5-0-BaseOS-x86_64 inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg<enter>",
+  "initrdefi /images/pxeboot/initrd.img<enter>",
+  "boot<enter>"
 ]
 
 # Default settings
 hostname = "oracle9"
-username = "admin"
-password = "admin"
+username = "packer"
+password = "packer"
 boot_wait = "10s"
+
+# Kernel configuration - use UEK kernel (Microsoft recommended for Oracle Linux)
+kernel_packages = "kernel-uek\nkernel-uek-devel"
+kernel_exclusions = "-kernel\n-kernel-devel"
+distro_specific_post = "# Set UEK kernel as default boot option\ngrub2-set-default 0"

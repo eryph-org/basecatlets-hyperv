@@ -60,33 +60,12 @@ EnableRDMA=y
 Provisioning.SshHostKeyPairType=rsa
 EOF
 
-# Enable walinuxagent service
-systemctl enable walinuxagent.service
+# Enable waagent service
+systemctl enable waagent.service
 
-# Configure cloud-init for Azure datasource (already done in kickstart, but ensure it's correct)
-mkdir -p /etc/cloud/cloud.cfg.d
-
-# Azure datasource configuration
-cat > /etc/cloud/cloud.cfg.d/91-azure_datasource.cfg << 'EOF'
-datasource_list: [ Azure, NoCloud ]
-datasource:
-  Azure:
-    apply_network_config: False
-EOF
-
-# Hyper-V KVP logging for Azure
-cat > /etc/cloud/cloud.cfg.d/10-azure-kvp.cfg << 'EOF'
-reporting:
-  logging:
-    type: log
-  telemetry:
-    type: hyperv
-EOF
-
-# Disable automatic network configuration to prevent conflicts
-cat > /etc/cloud/cloud.cfg.d/99-disable-network-config.cfg << 'EOF'
-network: {config: disabled}
-EOF
+# Note: Cloud-init datasource configuration is handled in kickstart
+# Note: Hyper-V KVP logging and network config are handled in kickstart
+# This script only configures WALinuxAgent
 
 # Configure cloud-init modules for Azure
 cat > /etc/cloud/cloud.cfg.d/05-azure-modules.cfg << 'EOF'
@@ -117,8 +96,8 @@ SUBSYSTEM=="net", DRIVERS=="hv_pci", ACTION=="add", ENV{NM_UNMANAGED}="1"
 EOF
 
 # Configure waagent systemd override for better reliability
-mkdir -p /etc/systemd/system/walinuxagent.service.d
-cat > /etc/systemd/system/walinuxagent.service.d/override.conf << 'EOF'
+mkdir -p /etc/systemd/system/waagent.service.d
+cat > /etc/systemd/system/waagent.service.d/override.conf << 'EOF'
 [Unit]
 After=network-online.target cloud-init-local.service
 Wants=network-online.target

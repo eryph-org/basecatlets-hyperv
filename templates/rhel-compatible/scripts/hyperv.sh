@@ -33,9 +33,9 @@ kernel.sysrq = 1
 vm.swappiness = 1
 EOF
 
-# Configure dracut to include Hyper-V drivers
+# Configure dracut to include Hyper-V drivers (Microsoft requirement)
 cat > /etc/dracut.conf.d/99-hyperv.conf << 'EOF'
-add_drivers+=" hv_vmbus hv_netvsc hv_storvsc hv_balloon "
+add_drivers+=" hv_vmbus hv_netvsc hv_storvsc "
 EOF
 
 # Regenerate initramfs to include Hyper-V drivers
@@ -43,14 +43,15 @@ if command -v dracut >/dev/null 2>&1; then
     dracut -f
 fi
 
-# Configure GRUB for Hyper-V console access
+# Configure GRUB for Hyper-V console access (Microsoft Azure/Hyper-V requirements)
 if [ -f /etc/default/grub ]; then
-    # Update GRUB configuration for serial console
-    sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& console=tty0 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 rootdelay=300/' /etc/default/grub
+    # Update GRUB configuration for serial console - exact Microsoft specifications
+    sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0 net.ifnames=0/' /etc/default/grub
 
-    # Remove quiet and rhgb for better debugging
+    # Remove quiet and rhgb for better debugging (Microsoft requirement)
     sed -i 's/ quiet//g' /etc/default/grub
     sed -i 's/ rhgb//g' /etc/default/grub
+    sed -i 's/ crashkernel=auto//g' /etc/default/grub
 
     # Update GRUB timeout for faster boot
     sed -i 's/GRUB_TIMEOUT=5/GRUB_TIMEOUT=1/' /etc/default/grub
@@ -62,6 +63,19 @@ if [ -f /etc/default/grub ]; then
         grub2-mkconfig -o /boot/grub2/grub.cfg
     fi
 fi
+
+# Add Microsoft-required udev rule for memory hot-add (Hyper-V Dynamic Memory)
+cat > /etc/udev/rules.d/100-balloon.rules << 'EOF'
+SUBSYSTEM=="memory", ACTION=="add", ATTR{state}="online"
+EOF
+
+# Add Azure Accelerated Networking udev rule (Azure compatibility)
+cat > /etc/udev/rules.d/68-azure-sriov-nm-unmanaged.rules << 'EOF'
+# Accelerated Networking on Azure exposes a new SRIOV interface to the VM.
+# This interface is transparently bonded to the synthetic interface,
+# so NetworkManager should just ignore any SRIOV interfaces.
+SUBSYSTEM=="net", DRIVERS=="hv_pci", ACTION=="add", ENV{NM_UNMANAGED}="1"
+EOF
 
 # Configure rsyslog for Hyper-V logging
 if [ -f /etc/rsyslog.conf ]; then

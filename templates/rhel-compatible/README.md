@@ -6,9 +6,11 @@ This directory contains Packer templates for building RHEL-compatible virtual ma
 
 ### Active Templates (Ready to Build)
 - **almalinux-8** - AlmaLinux 8.10 (free, publicly available ISO)
-- **almalinux-9** - AlmaLinux 9.4 (free, publicly available ISO)
-- **oracle-8** - Oracle Linux 8.10 (free, publicly available ISO)
-- **oracle-9** - Oracle Linux 9.4 (free, publicly available ISO)
+- **almalinux-9** - AlmaLinux 9.6 (free, publicly available ISO)
+- **almalinux-10** - AlmaLinux 10.0 (new major release, free, publicly available ISO)
+- **oracle-8** - Oracle Linux 8.9 (free, publicly available ISO)
+- **oracle-9** - Oracle Linux 9.5 (free, publicly available ISO)
+- **oracle-10** - Oracle Linux 10.0 (new major release, free, publicly available ISO)
 
 ### Example Templates (User Must Provide ISOs)
 - **rhel-8.pkrvars.hcl.example** - RHEL 8 template (requires Red Hat subscription)
@@ -40,8 +42,9 @@ packer build -var-file="almalinux-8.pkrvars.hcl" rhel-base.pkr.hcl
 ### Cloud Compatibility
 - **NoCloud datasource** - For eryph platform
 - **Azure datasource** - For Microsoft Azure
-- **Hyper-V Gen 2** - UEFI boot with secure boot support
+- **Hyper-V Gen 2** - UEFI boot with secure boot enabled (modern RHEL-compatible distributions support this)
 - **No swap partition** - Follows Azure best practices
+- **Microsoft compliance** - Follows official Hyper-V and Azure documentation requirements
 
 ### Partition Layout
 ```
@@ -92,6 +95,14 @@ To use RHEL instead of the free alternatives:
 2. Update `build.json` to include the new template
 3. Test the build process
 
+### Templating System
+Uses Packer's templating system for maximum reusability:
+- **`ks.pkrtpl.hcl`** - Templated kickstart file with variables
+- **Distribution-specific variables** in `.pkrvars.hcl` files:
+  - `kernel_packages` - Which kernel to install
+  - `kernel_exclusions` - Which kernels to exclude
+  - `distro_specific_post` - Distribution-specific post-install commands
+
 ### Modifying Provisioning
 The `scripts/` directory contains modular provisioning scripts:
 - `update.sh` - System updates and package installation
@@ -100,6 +111,22 @@ The `scripts/` directory contains modular provisioning scripts:
 - `azure.sh` - Azure Linux Agent configuration
 - `cloud-init.sh` - Cloud-init setup
 - `cleanup.sh` - System cleanup for imaging
+
+### Variable Examples
+
+**AlmaLinux/RHEL (Standard Kernel)**:
+```hcl
+kernel_packages = "kernel\nkernel-devel"
+kernel_exclusions = ""
+distro_specific_post = ""
+```
+
+**Oracle Linux (UEK Kernel)**:
+```hcl
+kernel_packages = "kernel-uek\nkernel-uek-devel"
+kernel_exclusions = "-kernel\n-kernel-devel"
+distro_specific_post = "# Set UEK kernel as default boot option\ngrub2-set-default 0"
+```
 
 ## Distribution Notes
 
@@ -113,7 +140,9 @@ The `scripts/` directory contains modular provisioning scripts:
 - 100% binary compatible with RHEL
 - Free for production use
 - Backed by Oracle
-- Includes Unbreakable Enterprise Kernel option
+- **Uses UEK kernel** (Unbreakable Enterprise Kernel) - Microsoft's recommendation for Hyper-V/Azure
+- Better performance than RHCK kernel (16% improvement in benchmarks)
+- **Note**: Oracle Linux templates use placeholder checksums - verify actual checksums from Oracle's checksum files before building
 
 ### RHEL
 - The original Red Hat Enterprise Linux
@@ -124,10 +153,15 @@ The `scripts/` directory contains modular provisioning scripts:
 ## Troubleshooting
 
 ### Common Issues
-1. **ISO Download Fails**: Check internet connection and ISO URLs
-2. **Kickstart Timeout**: Increase boot_wait time in .pkrvars.hcl
-3. **Package Installation Fails**: Check repository availability
-4. **SSH Connection Fails**: Verify network configuration and credentials
+1. **Invalid Checksum Error**:
+   - For Oracle Linux 8/9/10: Download checksum file from https://linux.oracle.com/security/gpg/archive.html
+   - Look for files like `OracleLinux-R8-U9-Server-x86_64.checksum`, `OracleLinux-R9-U5-Server-x86_64.checksum`, `OracleLinux-R10-U0-Server-x86_64.checksum`
+   - Extract the SHA256 checksum and replace placeholder in .pkrvars.hcl file
+   - For AlmaLinux: Check https://repo.almalinux.org/almalinux/[version]/isos/x86_64/CHECKSUM
+2. **ISO Download Fails**: Check internet connection and ISO URLs
+3. **Kickstart Timeout**: Increase boot_wait time in .pkrvars.hcl
+4. **Package Installation Fails**: Check repository availability
+5. **SSH Connection Fails**: Verify network configuration and credentials
 
 ### Debug Mode
 Add `-debug` flag to packer build for step-by-step execution:

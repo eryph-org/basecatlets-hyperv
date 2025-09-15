@@ -104,17 +104,7 @@ EOF
 # Configure cloud-init for dual datasource support (NoCloud + Azure)
 mkdir -p /etc/cloud/cloud.cfg.d
 
-cat > /etc/cloud/cloud.cfg.d/01-datasource.cfg << 'EOF'
-# Datasource configuration for eryph (NoCloud) and Azure compatibility
-datasource_list: [ NoCloud, Azure ]
-datasource:
-  NoCloud:
-    # Allow NoCloud to use network if needed
-    seedfrom: /var/lib/cloud/seed/nocloud-net/
-  Azure:
-    apply_network_config: False
-    set_hostname: True
-EOF
+# Datasource configuration is handled in kickstart - no need to duplicate here
 
 # Configure Hyper-V integration for logging
 cat > /etc/cloud/cloud.cfg.d/10-azure-kvp.cfg << 'EOF'

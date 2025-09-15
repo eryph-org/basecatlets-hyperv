@@ -21,9 +21,11 @@ EOF
 # Disable NetworkManager wait-online service (causes boot delays in cloud)
 systemctl disable NetworkManager-wait-online.service || true
 
-# Configure sshd for cloud environments
+# Configure sshd for cloud environments (Microsoft Azure requirements)
 sed -i 's/#UseDNS yes/UseDNS no/' /etc/ssh/sshd_config
 sed -i 's/#GSSAPIAuthentication yes/GSSAPIAuthentication no/' /etc/ssh/sshd_config
+# Add ClientAliveInterval for Azure compatibility
+sed -i 's/#ClientAliveInterval 0/ClientAliveInterval 180/' /etc/ssh/sshd_config
 
 # Enable SSH
 systemctl enable sshd

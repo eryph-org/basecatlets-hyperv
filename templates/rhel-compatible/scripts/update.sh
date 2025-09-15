@@ -28,35 +28,31 @@ fi
 # Update package cache after adding EPEL
 $PKG_MGR makecache
 
-# Install essential system tools for minimal cloud image
+# Install essential packages not in minimal kickstart
 $PKG_MGR install -y \
-    wget \
+    openssh-server \
+    cloud-init \
+    hyperv-daemons \
+    WALinuxAgent \
+    sudo \
     curl \
+    wget \
     rsync \
-    tar \
     unzip \
     vim-minimal \
     bash-completion \
     psmisc \
-    which \
-    sudo
-
-# Install cloud and virtualization packages
-echo "Installing cloud and virtualization packages..."
-$PKG_MGR install -y \
-    cloud-init \
-    cloud-utils-growpart \
-    hyperv-daemons \
-    WALinuxAgent \
-    python3 \
-    python3-pip
+    glibc \
+    libgcc \
+    libstdc++ \
+    libicu
 
 # Ensure services are enabled
 systemctl enable cloud-init
 systemctl enable cloud-init-local
 systemctl enable cloud-config
 systemctl enable cloud-final
-systemctl enable walinuxagent
+systemctl enable waagent
 systemctl enable hypervkvpd || echo "hypervkvpd service not found"
 systemctl enable hypervvssd || echo "hypervvssd service not found"
 

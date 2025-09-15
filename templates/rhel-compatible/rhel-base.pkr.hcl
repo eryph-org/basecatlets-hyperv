@@ -19,7 +19,7 @@ variable "cpus" {
 
 variable "disk_size" {
   type    = string
-  default = "65536"
+  default = "8192"
 }
 
 variable "http_proxy" {
@@ -68,18 +68,18 @@ variable "distro_name" {
 
 variable "username" {
   type    = string
-  default = "admin"
+  default = "packer"
 }
 
-# Generated via: printf admin | mkpasswd -m sha-512 -S admin... -s
+# Generated via: echo 'packer' | openssl passwd -6 -stdin
 variable "password_hash" {
   type    = string
-  default = "$6$admin...$X8qPAWz6eUTLhC9b5VYd8XYLu8/iXJzxz7bZ1d4bB5h7oYe6LKCJfHJ.8iX2.iY7gD6l/XlV9U9Ol5bH/vV3/1"
+  default = "$6$Z429xoUaiFrTT9TP$vemzmB.8Hbp7Fll4sDPe4U877taaO.hy8CieDqxJFs9F/4WmnXE.tTJl4xUQRc.CakFppjqRqsQ.WeEetPhIL."
 }
 
 variable "password" {
   type    = string
-  default = "admin"
+  default = "packer"
 }
 
 variable "hostname" {
@@ -95,6 +95,21 @@ variable "boot_command" {
 variable "boot_wait" {
   type    = string
   default = "10s"
+}
+
+variable "kernel_packages" {
+  type    = string
+  default = "kernel"
+}
+
+variable "kernel_exclusions" {
+  type    = string
+  default = ""
+}
+
+variable "distro_specific_post" {
+  type    = string
+  default = ""
 }
 
 locals {
@@ -124,7 +139,16 @@ source "hyperv-iso" "install" {
   ssh_username       = var.username
   switch_name        = var.hyperv_switch
   vm_name            = var.template
-  http_directory     = local.http_directory
+  http_content = {
+    "/ks.cfg" = templatefile("${path.root}/http/ks.pkrtpl.hcl", {
+        hostname = var.hostname
+        username = var.username
+        password_hash = var.password_hash
+        kernel_packages = var.kernel_packages
+        kernel_exclusions = var.kernel_exclusions
+        distro_specific_post = var.distro_specific_post
+    })
+  }
 }
 
 build {

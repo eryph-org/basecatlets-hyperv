@@ -22,13 +22,25 @@ rm -rf /var/cache/dnf/*
 find /var/lib/yum -name "*.sqlite" -delete 2>/dev/null || true
 find /var/lib/dnf -name "*.sqlite" -delete 2>/dev/null || true
 
-# Clean up log files
+# Reset DNF history (like AlmaLinux playbook)
+echo "Resetting DNF history..."
+rm -rf /var/lib/dnf/history* 2>/dev/null || true
+
+# Clean up log files (matching AlmaLinux playbook)
 echo "Cleaning log files..."
-find /var/log -type f -name "*.log" -exec truncate -s 0 {} \;
-find /var/log -type f -name "*.log.*" -delete
-rm -f /var/log/wtmp
-rm -f /var/log/btmp
-> /var/log/lastlog
+# Truncate specific system logs to 0 bytes
+truncate -s 0 /var/log/audit/audit.log || true
+truncate -s 0 /var/log/wtmp || true
+truncate -s 0 /var/log/lastlog || true
+truncate -s 0 /var/log/btmp || true
+truncate -s 0 /var/log/cron || true
+truncate -s 0 /var/log/maillog || true
+truncate -s 0 /var/log/messages || true
+truncate -s 0 /var/log/secure || true
+truncate -s 0 /var/log/spooler || true
+# Remove other log files
+find /var/log -type f -name "*.log.*" -delete 2>/dev/null || true
+find /var/log -name "*log" -name "*.old" -o -name "*.log.gz" -o -name "*.[0-9]" -o -name "*.gz" -delete 2>/dev/null || true
 
 # Clean up audit logs
 rm -f /var/log/audit/audit.log*
@@ -66,12 +78,16 @@ cloud-init clean --logs --seed || true
 rm -rf /var/lib/cloud/instances/*
 rm -rf /var/lib/cloud/instance
 rm -rf /var/lib/cloud/data
-rm -f /var/lib/cloud/sem/*
+rm -rf /var/lib/cloud/sem/* 2>/dev/null || true
 
-# Clean up machine-id (will be regenerated)
-echo "Cleaning machine-id..."
-> /etc/machine-id
+# Clean up machine-id and system info (will be regenerated)
+echo "Cleaning machine-id and system info..."
+truncate -s 0 /etc/machine-id || true
+truncate -s 0 /etc/resolv.conf || true
 rm -f /var/lib/dbus/machine-id
+rm -f /etc/hostname || true
+rm -f /etc/machine-info || true
+rm -f /var/lib/systemd/credential.secret || true
 
 # Clean up systemd journal
 rm -rf /var/log/journal/*
@@ -86,17 +102,21 @@ rm -rf /root/.ssh
 rm -f /home/*/.bash_history 2>/dev/null || true
 
 # Clean up mail
-rm -f /var/spool/mail/*
-rm -f /var/mail/*
+rm -rf /var/spool/mail/* 2>/dev/null || true
+rm -rf /var/mail/* 2>/dev/null || true
 
 # Clean up cron
-rm -f /var/spool/cron/*
+rm -rf /var/spool/cron/* 2>/dev/null || true
 
 # Clean up at jobs
-rm -f /var/spool/at/*
+rm -rf /var/spool/at/* 2>/dev/null || true
 
 # Clean up printer queues
-rm -f /var/spool/cups/*
+rm -rf /var/spool/cups/* 2>/dev/null || true
+
+# Remove old kernel versions (critical for size reduction)
+echo "Removing old kernel versions..."
+$PKG_MGR -y remove --oldinstallonly || true
 
 # Remove leftover packages
 echo "Cleaning up leftover packages..."
@@ -127,6 +147,33 @@ rm -rf /var/cache/fontconfig/*
 # Clean up SSL certificates cache
 rm -rf /var/cache/ca-certificates/*
 
+# Clean up documentation and info pages
+echo "Removing documentation and info pages..."
+rm -rf /usr/share/doc/*
+rm -rf /usr/share/info/*
+rm -rf /usr/share/man/??_*
+find /usr/share/man -type f -name "*.gz" -delete 2>/dev/null || true
+
+# Clean up locale files (keep only en_US)
+echo "Cleaning locale files..."
+find /usr/share/locale -mindepth 1 -maxdepth 1 ! -name 'en_US' -exec rm -rf {} + 2>/dev/null || true
+find /usr/share/i18n/locales -mindepth 1 -maxdepth 1 ! -name 'en_US' -delete 2>/dev/null || true
+
+# Remove development packages cache
+rm -rf /usr/share/pixmaps/*
+rm -rf /usr/share/icons/*/
+rm -rf /usr/share/backgrounds/*
+rm -rf /usr/share/wallpapers/*
+
+# Clean up systemd unit file cache
+rm -rf /var/lib/systemd/catalog/database
+systemd-catalog update || true
+
+# Remove more temporary files
+rm -rf /root/.local/share/Trash/*
+rm -rf /var/lib/yum/history/* 2>/dev/null || true
+rm -rf /var/lib/dnf/history/* 2>/dev/null || true
+
 # Zero out swap if it exists
 echo "Checking for swap..."
 swapoff -a || true
@@ -139,12 +186,13 @@ history -c
 echo "Syncing filesystems..."
 sync
 
-# Clear free space (optional - can be enabled for better compression)
-# Uncomment the following lines if you want to zero free space for better image compression
-# This can take a long time depending on disk size
-# echo "Zeroing free space for better compression (this may take a while)..."
-# dd if=/dev/zero of=/EMPTY bs=1M || true
-# rm -f /EMPTY
+# Deprovision WALinuxAgent if installed (like AlmaLinux playbook)
+if [ -f /usr/sbin/waagent ]; then
+    echo "Deprovisioning WALinuxAgent..."
+    waagent -deprovision+user -force || true
+fi
+
+# Free space zeroing is handled by minimize.sh script
 
 echo "System cleanup completed successfully"
 echo "System is ready for imaging"
