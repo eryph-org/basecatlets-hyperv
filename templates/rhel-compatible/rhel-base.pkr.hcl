@@ -44,18 +44,13 @@ variable "iso_name" {
   type    = string
 }
 
+variable "iso_url" {
+  type    = string
+}
+
 variable "memory" {
   type    = string
   default = "2048"
-}
-
-variable "mirror" {
-  type    = string
-  default = "http://releases.ubuntu.com"
-}
-
-variable "mirror_directory" {
-  type    = string
 }
 
 variable "no_proxy" {
@@ -67,72 +62,98 @@ variable "template" {
   type    = string
 }
 
+variable "distro_name" {
+  type    = string
+}
 
 variable "username" {
   type    = string
-  default = "ubuntu"
+  default = "packer"
 }
 
- # Generated via: printf ubuntu | mkpasswd -m sha-512 -S ubuntu.. -s
+# Generated via: echo 'packer' | openssl passwd -6 -stdin
 variable "password_hash" {
   type    = string
-  default = "$6$ubuntu..$j8zaVg6twXS78j47B7CoujiRvJKBGzHvbFYu52nNcztBsKXqPbBABvfXX51gI/jlS6KH6TjvNxCJT6C9iosNE."
+  default = "$6$Z429xoUaiFrTT9TP$vemzmB.8Hbp7Fll4sDPe4U877taaO.hy8CieDqxJFs9F/4WmnXE.tTJl4xUQRc.CakFppjqRqsQ.WeEetPhIL."
 }
 
 variable "password" {
   type    = string
-  default = "ubuntu"
+  default = "packer"
 }
 
 variable "hostname" {
   type    = string
-  default = "ubuntu"
+  default = "rhel-compatible"
 }
 
-variable "boot_cmds" {
+variable "boot_command" {
   type    = list(string)
+  default = []
 }
 
 variable "boot_wait" {
   type    = string
-  default = "5s"
+  default = "10s"
 }
 
+variable "package_list" {
+  type    = string
+  default = ""
+}
+
+variable "kernel_packages" {
+  type    = string
+  default = "kernel"
+}
+
+variable "kernel_exclusions" {
+  type    = string
+  default = ""
+}
+
+variable "distro_specific_post" {
+  type    = string
+  default = ""
+}
 
 locals {
-  http_directory  = "${path.root}/http"
+  http_directory = "${path.root}/http"
 }
 
 source "hyperv-iso" "install" {
-  boot_command       = var.boot_cmds
-  boot_wait          = "${var.boot_wait}"   
+  boot_command       = var.boot_command
+  boot_wait          = var.boot_wait
   communicator       = "ssh"
   disk_block_size    = 1
-  cpus               = "${var.cpus}"
-  disk_size          = "${var.disk_size}"
+  cpus               = var.cpus
+  disk_size          = var.disk_size
   headless           = true
   enable_secure_boot = true
   secure_boot_template = "MicrosoftUEFICertificateAuthority"
   generation         = "2"
   configuration_version = "8.0"
-  iso_checksum       = "${var.iso_checksum}"
-  iso_url            = "${var.mirror}/${var.mirror_directory}/${var.iso_name}"
-  memory             = "${var.memory}"
+  iso_checksum       = var.iso_checksum
+  iso_url            = var.iso_url
+  memory             = var.memory
   output_directory   = "${var.build_directory}/${var.template}-stage0"
-  shutdown_command   = "echo '${var.password}' | sudo -S sh -c 'passwd -l ubuntu && shutdown -P now'"
-  ssh_password       = "${var.password}"
+  shutdown_command   = "echo '${var.password}' | sudo -S sh -c 'passwd -l ${var.username} && shutdown -P now'"
+  ssh_password       = var.password
   ssh_port           = 22
   ssh_timeout        = "10000s"
-  ssh_username       = "${var.username}"
-  switch_name        = "${var.hyperv_switch}"
-  vm_name            = "${var.template}"
+  ssh_username       = var.username
+  switch_name        = var.hyperv_switch
+  vm_name            = var.template
   http_content = {
-    "/meta-data" = ""
-    "/user-data" = templatefile("${path.root}/user-data.pkrtpl.hcl", {
-        hostname = "${var.hostname}"
-        username = "${var.username}"
-        password_hash = "${var.password_hash}"
-    } )
+    "/ks.cfg" = templatefile("${path.root}/http/ks.pkrtpl.hcl", {
+        hostname = var.hostname
+        username = var.username
+        password_hash = var.password_hash
+        kernel_packages = var.kernel_packages
+        kernel_exclusions = var.kernel_exclusions
+        distro_specific_post = var.distro_specific_post
+        package_list = var.package_list
+    })
   }
 }
 
@@ -144,8 +165,8 @@ build {
      execute_command   = "echo '${var.password}' | {{ .Vars }} sudo -S -E sh -eux '{{ .Path }}'"
      expect_disconnect = true
      scripts           = [
-       "${path.root}/scripts/update.sh", 
-       "${path.root}/scripts/networking.sh", 
+       "${path.root}/scripts/update.sh",
+       "${path.root}/scripts/networking.sh",
        "${path.root}/scripts/hyperv.sh",
        "${path.root}/scripts/azure.sh",
        "${path.root}/scripts/cloud-init.sh"
@@ -164,9 +185,7 @@ build {
       execute_command   = "echo '${var.password}' | {{ .Vars }} sudo -S -E sh -eux '{{ .Path }}'"
       expect_disconnect = true
       scripts           = [
-        "${path.root}/scripts/cleanup.sh", 
+        "${path.root}/scripts/cleanup.sh",
         "${path.root}/../linux/scripts/minimize.sh"]
   }
-
-
-  }
+}

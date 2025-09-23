@@ -1,0 +1,32 @@
+# RHEL 8 variables for rhel-base.pkr.hcl
+# This is an example file - users must copy to rhel-8.pkrvars.hcl and provide their own ISO
+template = "rhel-8"
+distro_name = "RHEL"
+
+# RHEL 8 ISO - Users must provide their own from Red Hat Developer subscription
+# Download from: https://developers.redhat.com/products/rhel/download
+iso_name = "rhel-8-x86_64-dvd.iso"
+# Replace with your RHEL ISO path/URL - either local file:// or authenticated URL
+iso_url = "file:///path/to/your/rhel-8-x86_64-dvd.iso"
+# Replace with actual checksum from Red Hat
+iso_checksum = "sha256:your_actual_rhel_8_iso_checksum_here"
+
+# Boot command for RHEL 8 with kickstart (UEFI for Hyper-V Gen 2)
+boot_command = [
+  "c",
+  "setparams 'kickstart'<enter>",
+  "linuxefi /images/pxeboot/vmlinuz inst.stage2=hd:LABEL=RHEL-8-BaseOS-x86_64 inst.text inst.ks=http://{{ .HTTPIP }}:{{ .HTTPPort }}/ks.cfg<enter>",
+  "initrdefi /images/pxeboot/initrd.img<enter>",
+  "boot<enter>"
+]
+
+# Default settings
+hostname = "rhel8"
+username = "packer"
+password = "packer"
+boot_wait = "10s"
+
+# Kernel configuration - use standard RHEL kernel
+kernel_packages = "kernel\nkernel-devel"
+kernel_exclusions = ""
+distro_specific_post = ""

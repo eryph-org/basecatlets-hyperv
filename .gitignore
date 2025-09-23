@@ -10,3 +10,4 @@ plugin-dev/*.SHA256SUM
 # Installed plugins
 tools/plugins/
 .claude/*
+tools/azcopy.exe

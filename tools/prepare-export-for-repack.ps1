@@ -114,11 +114,7 @@ foreach ($hdd in $hardDrives) {
         Write-Host "    Merging to new disk (format: $($extension.ToUpper()))..."
         
         # Convert to a new disk (this merges the chain)
-        if ($Azure) {
-            Convert-VHD -Path $vhdPath -DestinationPath $newPath -VHDType Dynamic -VHDFormat VHD
-        } else {
-            Convert-VHD -Path $vhdPath -DestinationPath $newPath -VHDType Dynamic
-        }
+        Convert-VHD -Path $vhdPath -DestinationPath $newPath -VHDType Dynamic
         
         # Replace the disk in the VM
         Remove-VMHardDiskDrive -VMHardDiskDrive $hdd
@@ -127,20 +123,40 @@ foreach ($hdd in $hardDrives) {
                             -ControllerNumber $hdd.ControllerNumber `
                             -ControllerLocation $hdd.ControllerLocation `
                             -Path $newPath
-        
+
+        # Wait for VM to release file handles
+        Start-Sleep -Seconds 2
+
         # Remove old differencing disk and parent if not used elsewhere
         $parentPath = $vhd.ParentPath
         Remove-Item -Path $vhdPath -Force
-        
+
         # Check if parent is used by other disks
-        $otherDisks = Get-ChildItem -Path $vhdDir -Filter "*.vhd*" | 
+        $otherDisks = Get-ChildItem -Path $vhdDir -Filter "*.vhd*" |
                       Where-Object { $_.FullName -ne $vhdPath } |
                       ForEach-Object { Get-VHD -Path $_.FullName -ErrorAction SilentlyContinue } |
                       Where-Object { $_.ParentPath -eq $parentPath }
-        
+
         if (-not $otherDisks) {
             Write-Host "    Removing unused parent disk..."
-            Remove-Item -Path $parentPath -Force
+            # Retry parent disk removal with delays for file handle release
+            $retryCount = 0
+            $maxRetries = 5
+            do {
+                try {
+                    Remove-Item -Path $parentPath -Force -ErrorAction Stop
+                    break
+                } catch {
+                    $retryCount++
+                    if ($retryCount -ge $maxRetries) {
+                        Write-Host "    Warning: Could not remove parent disk after $maxRetries attempts: $parentPath"
+                        Write-Host "    You may need to manually remove it later"
+                        break
+                    }
+                    Write-Host "    Retry $retryCount/$maxRetries - waiting for file handles to be released..."
+                    Start-Sleep -Seconds 2
+                }
+            } while ($retryCount -lt $maxRetries)
         }
         
         # Rename merged disk - keep new extension if converting to VHD for Azure
@@ -164,18 +180,20 @@ foreach ($hdd in $hardDrives) {
         $consolidationCount++
     } else {
         Write-Host "    [OK] Standalone disk (no merge needed)"
+
     }
 }
+
 
 # Check if any disks were actually consolidated
 if ($consolidationCount -eq 0) {
     Write-Host ""
     Write-Host "No disk consolidation was needed - skipping re-export"
-    
+
     # Remove the temporary VM
     Write-Host "Cleaning up temporary VM..."
     Remove-VM -VM $vm -Force
-    
+
     Write-Host ""
     Write-Host "========================================="
     Write-Host "[OK] Export already optimized!"
@@ -188,28 +206,46 @@ if ($consolidationCount -eq 0) {
 Write-Host ""
 Write-Host "Re-exporting VM with consolidated disks ($consolidationCount disk(s) were merged)..."
 
-$exportTempPath = Join-Path $env:TEMP "VMExportTemp_$(Get-Random)"
+$exportTempPath = "${ExportPath}_temp"
 New-Item -ItemType Directory -Path $exportTempPath -Force | Out-Null
 
 try {
     Export-VM -VM $vm -Path $exportTempPath
-    
+
     # Remove the temporary VM first to release file locks
     Write-Host "Removing temporary VM to release file locks..."
     Remove-VM -VM $vm -Force
-    
+
+    # Wait a moment for the VM removal to complete and file handles to be released
+    Start-Sleep -Seconds 2
+
     # Get the exported VM folder
     $exportedFolder = Get-ChildItem -Path $exportTempPath -Directory | Select-Object -First 1
-    
-    # Clean the original export directory
+
+    # Clean the original export directory with retries
     Write-Host "Updating original export..."
-    Remove-Item -Path "$ExportPath\*" -Recurse -Force
-    
+    $retryCount = 0
+    $maxRetries = 5
+    do {
+        try {
+            Remove-Item -Path "$ExportPath\*" -Recurse -Force -ErrorAction Stop
+            break
+        } catch {
+            $retryCount++
+            if ($retryCount -ge $maxRetries) {
+                throw "Failed to clean export directory after $maxRetries attempts: $_"
+            }
+            Write-Host "  Retry $retryCount/$maxRetries - waiting for file handles to be released..."
+            Start-Sleep -Seconds 2
+        }
+    } while ($retryCount -lt $maxRetries)
+
     # Move the new export to the original location
+    Write-Host "Moving exported files to original location..."
     Get-ChildItem -Path $exportedFolder.FullName | Move-Item -Destination $ExportPath -Force
-    
+
     Write-Host "  [OK] Export updated with consolidated disks"
-    
+
 } finally {
     # Clean up temp export
     if (Test-Path $exportTempPath) {

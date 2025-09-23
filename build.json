@@ -1,6 +1,5 @@
-[
-    {"ubuntu": [
-        "ubuntu-20.04",
+{
+    "ubuntu": [
         "ubuntu-22.04",
         "ubuntu-24.04",
         "ubuntu-25.04"
@@ -15,12 +14,19 @@
         "winsrv2022-datacenter",
         "winsrv2025-standard",
         "winsrv2025-standardcore",
-        "winsrv2025-datacenter",        
+        "winsrv2025-datacenter",
         "win10-2004-enterprise",
         "win10-20h2-enterprise",
         "win11-21h1-enterprise",
         "win11-22h2-enterprise",
         "win11-24h2-enterprise"
+    ],
+    "rhel-compatible": [
+        "almalinux-8",
+        "almalinux-9",
+        "almalinux-10",
+        "oracle-8",
+        "oracle-9",
+        "oracle-10"
     ]
 }
-]

@@ -6,34 +6,42 @@
 echo "Installing and configuring Azure Linux Agent..."
 
 # Install Azure Linux Agent and required packages
-apt-get install -y walinuxagent cloud-utils-growpart gdisk hyperv-daemons
+apt-get install -y walinuxagent cloud-guest-utils
 
-# Configure waagent to work with cloud-init (auto-detection mode)
+# Configure waagent to work with cloud-init
 # This allows both eryph and Azure to work with the same image
-mkdir -p /etc/waagent.conf.d
-cat > /etc/waagent.conf.d/99-azure.conf << 'EOF'
-# Configure WALinuxAgent for cloud-init cooperation
-Provisioning.Agent=auto
-Provisioning.UseCloudInit=y
+cat > /etc/waagent.conf << 'EOF'
+# WALinuxAgent configuration for Ubuntu with cloud-init
+# Modern configuration for 2024+ compatibility
 
-# Resource disk configuration (Azure temporary disk)
-ResourceDisk.Format=y
+# Provisioning - let cloud-init handle provisioning
+Provisioning.Agent=auto
+Provisioning.Enabled=n
+Provisioning.UseCloudInit=y
+Provisioning.AllowResetSysUser=n
+Provisioning.RegenerateSshHostKeyPair=n
+Provisioning.DeleteRootPassword=n
+Provisioning.DecodeCustomData=n
+Provisioning.ExecuteCustomData=n
+Provisioning.MonitorHostName=n
+
+# Resource disk - disable formatting (leave to cloud-init/user)  
+ResourceDisk.Format=n
 ResourceDisk.EnableSwap=n
 ResourceDisk.MountPoint=/mnt/resource
 ResourceDisk.MountOptions=None
+ResourceDisk.Filesystem=ext4
+ResourceDisk.EnableSwapEncryption=n
 
-# Enable monitoring and extensions
-Provisioning.MonitorHostName=y
+# Extensions and auto-update
 Extensions.Enabled=y
+AutoUpdate.Enabled=y
 
-# Network configuration
-Provisioning.DecodeCustomData=n
-Provisioning.ExecuteCustomData=n
+# Logs
+Logs.Verbose=n
+OS.AllowHTTP=n
+OS.CheckRdmaDriver=n
 EOF
 
-# Enable waagent service (will start automatically on Azure)
-systemctl enable waagent.service
-
-# Don't start waagent now - it will start automatically when deployed to Azure
-# For eryph, cloud-init handles provisioning and waagent remains dormant
-echo "Azure Linux Agent installed and configured for universal compatibility"
+# Enable walinuxagent service (will start automatically on Azure)
+systemctl enable walinuxagent.service

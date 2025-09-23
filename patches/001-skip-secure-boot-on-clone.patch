@@ -1,0 +1,20 @@
+diff --git a/builder/hyperv/common/step_clone_vm.go b/builder/hyperv/common/step_clone_vm.go
+index 9842137..2785a42 100644
+--- a/builder/hyperv/common/step_clone_vm.go
++++ b/builder/hyperv/common/step_clone_vm.go
+@@ -112,13 +112,8 @@ func (s *StepCloneVM) Run(ctx context.Context, state multistep.StateBag) multist
+ 
+ 	if generation == 2 {
+ 
+-		err = driver.SetVirtualMachineSecureBoot(s.VMName, s.EnableSecureBoot, s.SecureBootTemplate)
+-		if err != nil {
+-			err := fmt.Errorf("Error setting secure boot: %s", err)
+-			state.Put("error", err)
+-			ui.Error(err.Error())
+-			return multistep.ActionHalt
+-		}
++		// Skip secure boot configuration for cloned VMs - they already have their security settings
++		// This prevents errors when TPM is already initialized
+ 
+ 		if s.EnableTPM {
+ 			err = driver.SetVirtualMachineTPM(s.VMName, s.EnableTPM)

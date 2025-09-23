@@ -59,6 +59,7 @@ variable "cpus" {
 
 source "hyperv-vmcx" "repack" {
   clone_from_vmcx_path = "${var.export_path}"
+  copy_in_compare      = false
   communicator         = "ssh"
   ssh_username         = "${var.username}"
   ssh_password         = "${var.password}"

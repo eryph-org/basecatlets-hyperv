@@ -1,0 +1,85 @@
+{
+    "Disks": [
+        {
+            "PartitionTableType": "gpt",
+            "MaxSize": 65536,
+            "Artifacts": [
+                {
+                    "Name": "core",
+                    "Type": "vhdx"
+                }
+            ],
+            "Partitions": [
+                {
+                    "Id": "esp",
+                    "Start": 1,
+                    "End": 201,
+                    "Type": "fat32",
+                    "Flags": ["esp", "boot"]
+                },
+                {
+                    "Id": "boot",
+                    "Start": 201,
+                    "End": 1225,
+                    "Type": "ext4"
+                },
+                {
+                    "Id": "rootfs",
+                    "Start": 1225,
+                    "End": 0,
+                    "Type": "ext4"
+                }
+            ]
+        }
+    ],
+    "SystemConfigs": [
+        {
+            "Name": "eryph-core-efi",
+            "BootType": "efi",
+            "PartitionSettings": [
+                {
+                    "Id": "esp",
+                    "MountPoint": "/boot/efi",
+                    "MountOptions": "umask=0077"
+                },
+                {
+                    "Id": "boot",
+                    "MountPoint": "/boot"
+                },
+                {
+                    "Id": "rootfs",
+                    "MountPoint": "/"
+                }
+            ],
+            "PackageLists": [
+                "packagelists/core-packages-image.json",
+                "packagelists/eryph-packages.json"
+            ],
+            "KernelOptions": {
+                "default": "console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0,115200 net.ifnames=0 rootdelay=300"
+            },
+            "PostInstallScripts": [
+                {
+                    "Path": "postinstallscripts/configure-cloud-init.sh"
+                },
+                {
+                    "Path": "postinstallscripts/setup-hyperv.sh"
+                },
+                {
+                    "Path": "postinstallscripts/cleanup.sh"
+                },
+                {
+                    "Path": "postinstallscripts/minimize.sh"
+                }
+            ],
+            "Hostname": "azure-linux",
+            "Users": [
+                {
+                    "Name": "packer",
+                    "Password": "$6$Z429xoUaiFrTT9TP$vemzmB.8Hbp7Fll4sDPe4U877taaO.hy8CieDqxJFs9F/4WmnXE.tTJl4xUQRc.CakFppjqRqsQ.WeEetPhIL.",
+                    "PasswordHashed": true
+                }
+            ]
+        }
+    ]
+}

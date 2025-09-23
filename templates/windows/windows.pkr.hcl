@@ -5,10 +5,6 @@ packer {
       version = "0.12.0"
       source = "github.com/rgl/windows-update"
     }
-    chef = {
-      version = " >= 1.0.0"      
-      source  = "github.com/bdwyertech/chef"
-    }
     hyperv = {
       version = " >= 1.1.0"
       source  = "github.com/hashicorp/hyperv"
@@ -99,11 +95,20 @@ source "hyperv-iso" "install" {
 build {
   sources = ["source.hyperv-iso.install"]
 
-  provisioner "chef-solo" {
-    cookbook_paths = ["${path.root}/cookbooks"]
-    guest_os_type  = "windows"
-    run_list       = ["packer::first_boot"]
-    version        = 17
+  # Copy cookbooks to the VM
+  provisioner "file" {
+    source      = "${path.root}/cookbooks"
+    destination = "C:/packer/"
+  }
+
+  # Run first boot chef recipes
+  provisioner "powershell" {
+    elevated_password = "${var.password}"
+    elevated_user     = "${var.username}"
+    script            = "${path.root}/scripts/run-chef.ps1"
+    environment_vars  = [
+      "RUNLIST=packer::first_boot"
+    ]
   }
 
   provisioner "windows-restart" {
@@ -126,11 +131,14 @@ build {
   
   provisioner "windows-restart" {}
 
-  provisioner "chef-solo" {
-    cookbook_paths = ["${path.root}/cookbooks"]
-    guest_os_type  = "windows"
-    run_list       = ["packer::finalize"]
-    version        = 17
+  # Run finalize chef recipes
+  provisioner "powershell" {
+    elevated_password = "${var.password}"
+    elevated_user     = "${var.username}"
+    script            = "${path.root}/scripts/run-chef.ps1"
+    environment_vars  = [
+      "RUNLIST=packer::finalize"
+    ]
   }
   
   provisioner "powershell" {

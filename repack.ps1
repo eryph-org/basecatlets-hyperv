@@ -38,25 +38,21 @@ param (
     # Azure upload parameter set - convert and upload to Azure
     [Parameter(ParameterSetName='AzureUpload', Mandatory=$true)]
     [switch]$UploadToAzure,  # Enable Azure upload workflow
-    
+
     [Parameter(ParameterSetName='AzureUpload', Mandatory=$true)]
-    [string]$AzureResourceGroup,  # Azure resource group for the image
-    
+    [string]$AzureStorageAccount,  # Azure storage account name
+
+    [Parameter(ParameterSetName='AzureUpload', Mandatory=$true)]
+    [string]$AzureContainerName,  # Azure storage container name
+
     [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
-    [string]$AzureLocation = 'eastus',  # Azure region
-    
-    [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
-    [string]$AzureImageName,  # Name for Azure managed image (defaults to OutputName)
-    
-    [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
-    [ValidateSet('Premium_LRS', 'Standard_LRS', 'StandardSSD_LRS', 'UltraSSD_LRS', 'Premium_ZRS', 'StandardSSD_ZRS')]
-    [string]$AzureStorageType = 'Premium_LRS',  # Azure disk storage type
-    
+    [string]$AzureBlobName,  # Name for the VHD blob (defaults to OutputName)
+
     [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
     [string]$AzureSubscriptionId,  # Azure subscription ID (uses current context if not specified)
-    
+
     [Parameter(ParameterSetName='AzureUpload', Mandatory=$false)]
-    [switch]$SkipAzureImageCreation  # Only upload VHD, don't create managed image
+    [int]$AzureCapMbps = 50  # Network bandwidth cap in Mbps for Azure upload
 )
 
 $ErrorActionPreference = 'Stop'
@@ -107,6 +103,61 @@ if ([string]::IsNullOrWhiteSpace($SwitchName)) {
     Write-Host "Using auto-detected switch: $SwitchName"
 }
 
+# Verify Azure credentials if Azure upload is enabled
+if ($PSCmdlet.ParameterSetName -eq 'AzureUpload') {
+    Write-Host "Verifying Azure CLI credentials before starting repack..."
+
+    try {
+        # Check if Azure CLI is available
+        $azVersion = az version 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Azure CLI is not installed or not in PATH"
+        }
+
+        # Check if logged in to Azure
+        $azAccount = az account show 2>$null | ConvertFrom-Json
+        if ($LASTEXITCODE -ne 0 -or -not $azAccount) {
+            throw "Not logged in to Azure. Run 'az login' first."
+        }
+
+        # Set Azure subscription if provided
+        if ($AzureSubscriptionId) {
+            Write-Host "Setting Azure subscription to: $AzureSubscriptionId"
+            az account set --subscription $AzureSubscriptionId 2>$null
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to set Azure subscription to: $AzureSubscriptionId"
+            }
+            $azAccount = az account show | ConvertFrom-Json
+        }
+
+        Write-Host "[OK] Azure CLI credentials verified"
+        Write-Host "  Subscription: $($azAccount.name) ($($azAccount.id))"
+        Write-Host "  Account: $($azAccount.user.name)"
+        Write-Host "  Tenant: $($azAccount.tenantId)"
+
+        # Verify storage account exists
+        Write-Host "Verifying storage account: $AzureStorageAccount"
+        $storageAccount = az storage account show --name "$AzureStorageAccount" --query "name" -o tsv 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $storageAccount) {
+            throw "Storage account '$AzureStorageAccount' not found or not accessible"
+        }
+        Write-Host "[OK] Storage account verified: $AzureStorageAccount"
+
+    } catch {
+        Write-Host "Azure CLI credentials verification failed: $_" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "Please ensure:"
+        Write-Host "1. Azure CLI is installed: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
+        Write-Host "2. You are logged in: az login"
+        Write-Host "3. You have access to subscription: $(if ($AzureSubscriptionId) { $AzureSubscriptionId } else { 'current' })"
+        Write-Host "4. Storage account exists and is accessible: $AzureStorageAccount"
+        Write-Host ""
+        throw "Azure credentials verification failed. Please fix the above issues and try again."
+    }
+
+    Write-Host ""
+}
+
 # Generate metadata
 $metadata = @{
     "_os_type" = if ($OSType -eq 'windows') { 'windows' } else { 'linux' }
@@ -122,23 +173,66 @@ Write-Host "Output Name: $OutputName"
 Write-Host "Username: $Username"
 Write-Host "==========================================="
 
-# Prepare export by consolidating any differencing disks
-if (-not $SkipDiskMerge) {
-    Write-Host "`nPreparing export (consolidating differencing disks)..."
-    if ($PSCmdlet.ParameterSetName -eq 'AzureUpload') {
-        & .\tools\prepare-export-for-repack.ps1 -ExportPath $ExportPath -Force -Azure
+# Check if build already exists (for repeatability) - always check stage1 (final output)
+$buildPath = ".\builds\$OutputName-stage1"
+if (Test-Path $buildPath) {
+    Write-Host "`nExisting build found: $buildPath"
+
+    # Look for VHD files in VM subdirectory (catletlify structure)
+    $vmSubDir = Get-ChildItem -Path $buildPath -Directory | Select-Object -First 1
+    if ($vmSubDir) {
+        $vhdDir = Join-Path $vmSubDir.FullName "Virtual Hard Disks"
+        if (Test-Path $vhdDir) {
+            $vhdFiles = Get-ChildItem -Path $vhdDir -Filter "*.vhd*"
+            if ($vhdFiles.Count -gt 0) {
+                Write-Host "Build appears complete with VHD files:"
+                foreach ($vhd in $vhdFiles) {
+                    Write-Host "  - $($vhd.Name)"
+                }
+
+                if ($PSCmdlet.ParameterSetName -eq 'AzureUpload') {
+                    Write-Host "`nSkipping repack and catletlify - proceeding directly to Azure upload..."
+                    $skipRepack = $true
+                } else {
+                    Write-Host "`nSkipping repack and catletlify - build already complete at: $buildPath"
+                    exit 0
+                }
+            } else {
+                Write-Host "Build directory exists but no VHD files found - will rebuild"
+                $skipRepack = $false
+            }
+        } else {
+            Write-Host "Build directory exists but no Virtual Hard Disks found - will rebuild"
+            $skipRepack = $false
+        }
     } else {
-        & .\tools\prepare-export-for-repack.ps1 -ExportPath $ExportPath -Force
-    }
-    
-    if ($LASTEXITCODE -ne 0) {
-        throw "Failed to prepare export for repacking"
+        Write-Host "Build directory exists but no VM subdirectory found - will rebuild"
+        $skipRepack = $false
     }
 } else {
-    Write-Warning "Skipping disk consolidation - VM may have differencing disks!"
+    Write-Host "`nNo existing build found - will create new build"
+    $skipRepack = $false
 }
 
 try {
+    if (-not $skipRepack) {
+        # Prepare export by consolidating any differencing disks
+        if (-not $SkipDiskMerge) {
+            Write-Host "`nPreparing export (consolidating differencing disks)..."
+            if ($PSCmdlet.ParameterSetName -eq 'AzureUpload') {
+                & .\tools\prepare-export-for-repack.ps1 -ExportPath $ExportPath -Force -Azure
+            } else {
+                & .\tools\prepare-export-for-repack.ps1 -ExportPath $ExportPath -Force
+            }
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to prepare export for repacking"
+            }
+        } else {
+            Write-Warning "Skipping disk consolidation - VM may have differencing disks!"
+        }
+
+    # Navigate to OS-specific template directory and run Packer
     # Navigate to OS-specific template directory
     $templateDir = if ($OSType -eq 'ubuntu' -or $OSType -eq 'linux') { 'ubuntu' } else { 'windows' }
     $templatePath = Join-Path "templates" $templateDir
@@ -210,45 +304,51 @@ try {
     } finally {
         Pop-Location
     }
-    
-    # Handle output based on parameter set
-    $isAzureUpload = $PSCmdlet.ParameterSetName -eq 'AzureUpload'
+} # End of skipRepack check
+
+# Handle output based on parameter set
+$isAzureUpload = $PSCmdlet.ParameterSetName -eq 'AzureUpload'
     
     if ($isAzureUpload) {
         # Azure upload workflow
         Write-Host "`n==========================================="
         Write-Host "Preparing for Azure upload"
         Write-Host "==========================================="
-        Write-Host "Resource Group: $AzureResourceGroup"
-        Write-Host "Location: $AzureLocation"
-        Write-Host "Storage Type: $AzureStorageType"
-        
-        # Skip catletlify for Azure (not needed for Azure deployment)
-        Write-Host "`nSkipping catletlify (not needed for Azure)"
-        
-        # Convert and upload to Azure
-        $azureImageName = if ($AzureImageName) { $AzureImageName } else { $OutputName }
-        
+        Write-Host "Storage Account: $AzureStorageAccount"
+        Write-Host "Container: $AzureContainerName"
+
+        # Run catletlify only if we ran the repack (stage0 exists)
+        if (-not $skipRepack) {
+            Write-Host "`nRunning catletlify to standardize disk naming..."
+            & .\tools\catletlify.ps1 -BasePath .\builds -TemplateName $OutputName
+
+            if ($LASTEXITCODE -ne 0) {
+                throw "Catletlify failed with exit code $LASTEXITCODE"
+            }
+        } else {
+            Write-Host "`nSkipping catletlify - using existing stage1 build"
+        }
+
+        # Set blob prefix if not provided
+        $blobPrefix = if ($AzureBlobName) { $AzureBlobName } else { $OutputName }
+
         & .\tools\upload-to-azure.ps1 `
-            -BuildPath ".\builds\$OutputName-stage0" `
-            -ResourceGroup $AzureResourceGroup `
-            -Location $AzureLocation `
-            -ImageName $azureImageName `
-            -OSType $OSType `
-            -StorageType $AzureStorageType `
-            -SkipImageCreation:$SkipAzureImageCreation `
-            -SubscriptionId $AzureSubscriptionId
-            
+            -BuildPath ".\builds\$OutputName-stage1" `
+            -StorageAccount $AzureStorageAccount `
+            -ContainerName $AzureContainerName `
+            -BlobPrefix $blobPrefix `
+            -SubscriptionId $AzureSubscriptionId `
+            -CapMbps $AzureCapMbps
+
         if ($LASTEXITCODE -ne 0) {
             throw "Azure upload failed with exit code $LASTEXITCODE"
         }
-        
+
         Write-Host "`n==========================================="
         Write-Host "Azure upload completed successfully!"
-        if (-not $SkipAzureImageCreation) {
-            Write-Host "Azure managed image: $azureImageName"
-        }
-        Write-Host "Resource Group: $AzureResourceGroup"
+        Write-Host "Storage Account: $AzureStorageAccount"
+        Write-Host "Container: $AzureContainerName"
+        Write-Host "Blob Prefix: $blobPrefix"
         Write-Host "==========================================="
         
     } else {
@@ -272,7 +372,7 @@ try {
             Write-Host "==========================================="
         }
     }
-    
+
 } catch {
     Write-Error "Repack failed: $_"
     exit 1

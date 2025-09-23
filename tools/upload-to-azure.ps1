@@ -3,274 +3,431 @@ param (
     [Parameter(Mandatory=$true)]
     [ValidateScript({Test-Path $_ -PathType Container})]
     [string]$BuildPath,  # Path to build directory containing VHDX
-    
+
     [Parameter(Mandatory=$true)]
-    [string]$ResourceGroup,  # Azure resource group
-    
+    [string]$StorageAccount,  # Azure storage account name
+
     [Parameter(Mandatory=$true)]
-    [string]$Location,  # Azure region
-    
+    [string]$ContainerName,  # Azure storage container name
+
     [Parameter(Mandatory=$true)]
-    [string]$ImageName,  # Name for Azure managed image
-    
-    [Parameter(Mandatory=$true)]
-    [ValidateSet('windows', 'ubuntu', 'linux')]
-    [string]$OSType,  # Operating system type
-    
-    [Parameter(Mandatory=$false)]
-    [ValidateSet('Premium_LRS', 'Standard_LRS', 'StandardSSD_LRS', 'UltraSSD_LRS', 'Premium_ZRS', 'StandardSSD_ZRS')]
-    [string]$StorageType = 'Premium_LRS',  # Azure disk storage type
-    
+    [string]$BlobPrefix,  # Prefix path for VHD blobs in container (e.g., "disks/eryph/genepool")
+
     [Parameter(Mandatory=$false)]
     [string]$SubscriptionId,  # Azure subscription ID
-    
+
     [Parameter(Mandatory=$false)]
-    [switch]$SkipImageCreation  # Only upload VHD, don't create managed image
+    [int]$CapMbps = 50  # Network bandwidth cap in Mbps
 )
 
 $ErrorActionPreference = 'Stop'
 
 Write-Host "==========================================="
-Write-Host "Azure VHD Upload and Image Creation"
+Write-Host "Azure VHD Directory Upload to Blob Storage"
 Write-Host "==========================================="
 Write-Host "Build Path: $BuildPath"
-Write-Host "Resource Group: $ResourceGroup"
-Write-Host "Location: $Location"
-Write-Host "Image Name: $ImageName"
-Write-Host "OS Type: $OSType"
-Write-Host "Storage Type: $StorageType"
+Write-Host "Storage Account: $StorageAccount"
+Write-Host "Container: $ContainerName"
+Write-Host "Blob Prefix: $BlobPrefix"
 Write-Host ""
 
-# Check if Azure PowerShell is available
+# Check if Azure CLI is available
 try {
-    $null = Get-Module -Name Az.Accounts -ListAvailable
-    $null = Get-Module -Name Az.Compute -ListAvailable
-    $null = Get-Module -Name Az.Storage -ListAvailable
+    $azVersion = az version 2>$null | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0) {
+        throw "Azure CLI is not installed or not in PATH"
+    }
+    Write-Host "Using Azure CLI version: $($azVersion.'azure-cli')"
 } catch {
-    throw "Azure PowerShell modules (Az.Accounts, Az.Compute, Az.Storage) are required. Please install them with: Install-Module -Name Az"
+    throw "Azure CLI is required. Please install it from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli"
 }
 
-# Test Azure credentials at the beginning
+# Check if azcopy is available in tools directory
+$azcopyPath = Join-Path $PSScriptRoot "azcopy.exe"
+if (-not (Test-Path $azcopyPath)) {
+    throw @"
+azcopy.exe not found in tools directory: $azcopyPath
+
+Please download azcopy and place it in the tools directory:
+1. Download from: https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-v10
+2. Extract azcopy.exe to: $PSScriptRoot\azcopy.exe
+3. Run this script again
+"@
+}
+
+Write-Host "Using azcopy from: $azcopyPath"
+
+# Test Azure credentials
 Write-Host "Testing Azure credentials..."
 try {
     # Verify we're logged in to Azure
-    $context = Get-AzContext
-    if (-not $context) {
+    $account = az account show 2>$null | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or -not $account) {
         throw "Not logged in to Azure"
     }
-    
+
     # Set Azure context if subscription ID is provided
     if ($SubscriptionId) {
         Write-Host "Setting Azure subscription context to: $SubscriptionId"
-        Set-AzContext -SubscriptionId $SubscriptionId | Out-Null
-        $context = Get-AzContext
+        az account set --subscription $SubscriptionId 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Failed to set subscription: $SubscriptionId"
+        }
+        $account = az account show | ConvertFrom-Json
     }
-    
-    Write-Host "Using Azure subscription: $($context.Subscription.Name)"
-    
-    # Test if we can actually make Azure calls by trying to list resource groups
-    $null = Get-AzResourceGroup -ErrorAction Stop | Select-Object -First 1
+
+    Write-Host "Using Azure subscription: $($account.name)"
     Write-Host "Azure credentials verified successfully"
-    
+
 } catch {
-    throw "Azure credentials test failed. Please login to Azure using Connect-AzAccount: $_"
+    throw "Azure credentials test failed. Please login to Azure using 'az login': $_"
 }
 
-# Find VHD or VHDX files in the build directory
-$vhdDir = Join-Path $BuildPath "Virtual Hard Disks"
+# Find Virtual Hard Disks directory in catletlify output structure
+$vmSubDir = Get-ChildItem -Path $BuildPath -Directory | Select-Object -First 1
+if (-not $vmSubDir) {
+    throw "No VM subdirectory found in build path: $BuildPath"
+}
+
+$vhdDir = Join-Path $vmSubDir.FullName "Virtual Hard Disks"
 if (-not (Test-Path $vhdDir)) {
-    throw "Virtual Hard Disks directory not found in build path: $vhdDir"
+    throw "Virtual Hard Disks directory not found in VM subdirectory: $($vmSubDir.FullName)"
 }
 
-# Look for VHD files first (already converted), then VHDX
+# Check for VHD and VHDX files
 $vhdFiles = Get-ChildItem -Path $vhdDir -Filter "*.vhd"
 $vhdxFiles = Get-ChildItem -Path $vhdDir -Filter "*.vhdx"
+$totalFiles = $vhdFiles.Count + $vhdxFiles.Count
 
-if ($vhdFiles.Count -gt 0) {
-    $sourcePath = $vhdFiles[0].FullName
-    $alreadyVhd = $true
-    Write-Host "Found VHD: $sourcePath (already in VHD format)"
-} elseif ($vhdxFiles.Count -gt 0) {
-    $sourcePath = $vhdxFiles[0].FullName
-    $alreadyVhd = $false
-    Write-Host "Found VHDX: $sourcePath"
-} else {
+if ($totalFiles -eq 0) {
     throw "No VHD or VHDX files found in: $vhdDir"
 }
 
-# Convert VHDX to fixed VHD for Azure compatibility if needed
-if ($alreadyVhd) {
-    $vhdPath = $sourcePath
-    Write-Host "`nUsing existing VHD file (skipping conversion)"
+Write-Host "Found $($vhdFiles.Count) VHD file(s) and $($vhdxFiles.Count) VHDX file(s)"
+foreach ($vhd in $vhdFiles) {
+    Write-Host "  VHD: $($vhd.Name)"
+}
+foreach ($vhdx in $vhdxFiles) {
+    Write-Host "  VHDX: $($vhdx.Name)"
+}
+
+# Convert all VHDX files to VHD format if needed
+if ($vhdxFiles.Count -gt 0) {
+    Write-Host "`nConverting VHDX files to VHD format..."
+    foreach ($vhdxFile in $vhdxFiles) {
+        $vhdPath = [System.IO.Path]::ChangeExtension($vhdxFile.FullName, '.vhd')
+        Write-Host "Converting: $($vhdxFile.Name) -> $([System.IO.Path]::GetFileName($vhdPath))"
+
+        try {
+            Convert-VHD -Path $vhdxFile.FullName -DestinationPath $vhdPath -VHDType Dynamic
+            Write-Host "  Converted successfully"
+        } catch {
+            throw "Failed to convert VHDX to VHD: $($vhdxFile.Name) - $_"
+        }
+    }
 } else {
-    $vhdPath = [System.IO.Path]::ChangeExtension($sourcePath, '.vhd')
-    Write-Host "`nConverting VHDX to fixed VHD format..."
-    Write-Host "Source: $sourcePath"
-    Write-Host "Target: $vhdPath"
-    
-    try {
-        Convert-VHD -Path $sourcePath -DestinationPath $vhdPath -VHDType Fixed
-        Write-Host "VHD conversion completed successfully"
-    } catch {
-        throw "Failed to convert VHDX to VHD: $_"
+    Write-Host "`nAll files are already in VHD format"
+}
+
+# Process all VHD files: convert to Fixed and ensure MiB alignment (idempotent operations)
+Write-Host "`nProcessing all VHD files for Azure compatibility..."
+$allVhdFiles = Get-ChildItem -Path $vhdDir -Filter "*.vhd"
+$mib = 1048576  # 1 MiB = 1048576 bytes
+
+foreach ($vhdFile in $allVhdFiles) {
+    $fileName = $vhdFile.Name
+    Write-Host "`nProcessing: $fileName"
+
+    $vhd = Get-VHD -Path $vhdFile.FullName
+    $currentVirtualSize = $vhd.Size
+    $currentFileSize = (Get-Item -Path $vhdFile.FullName).Length
+
+    Write-Host "  Virtual size: $currentVirtualSize bytes ($([Math]::Round($currentVirtualSize / 1GB, 2)) GB)"
+    Write-Host "  File size: $currentFileSize bytes"
+    Write-Host "  Type: $($vhd.VhdType)"
+
+    $needsProcessing = $false
+
+    # Check MiB alignment
+    $currentMiB = $currentVirtualSize / $mib
+    if ($currentMiB -ne [Math]::Floor($currentMiB)) {
+        Write-Host "  Virtual size not MiB-aligned, resizing..."
+        $alignedMiB = [Math]::Ceiling($currentMiB)
+        $alignedVirtualSize = $alignedMiB * $mib
+
+        Resize-VHD -Path $vhdFile.FullName -SizeBytes $alignedVirtualSize
+        Write-Host "  Resized to $alignedVirtualSize bytes ($alignedMiB MiB)"
+        $needsProcessing = $true
     }
+
+    # Convert to Fixed if needed (replace original file)
+    $vhd = Get-VHD -Path $vhdFile.FullName
+    if ($vhd.VhdType -eq 'Dynamic') {
+        Write-Host "  Converting to Fixed type (replacing original)..."
+        $fileExtension = [System.IO.Path]::GetExtension($vhdFile.FullName)
+        $tempFixedPath = $vhdFile.FullName -replace "$fileExtension$", "_fixed$fileExtension"
+
+        Convert-VHD -Path $vhdFile.FullName -DestinationPath $tempFixedPath -VHDType Fixed
+
+        # Replace original with fixed version
+        Remove-Item -Path $vhdFile.FullName -Force
+        Move-Item -Path $tempFixedPath -Destination $vhdFile.FullName -Force
+
+        Write-Host "  Converted to Fixed type and replaced original"
+        $needsProcessing = $true
+    } else {
+        Write-Host "  Already Fixed type"
+    }
+
+    Write-Host "  [OK] File ready for Azure upload"
 }
 
-# Verify and align VHD size to 1MB boundary (Azure requirement)
-$vhd = Get-VHD -Path $vhdPath
-$currentSize = $vhd.Size
-$alignedSize = [Math]::Ceiling($currentSize / 1MB) * 1MB
+Write-Host "`nAll VHD files processed and ready for upload"
 
-if ($currentSize -ne $alignedSize) {
-    Write-Host "Resizing VHD to align with 1MB boundary..."
-    Write-Host "Current size: $currentSize bytes"
-    Write-Host "Aligned size: $alignedSize bytes"
-    Resize-VHD -Path $vhdPath -SizeBytes $alignedSize
-}
+# Create storage container if it doesn't exist
+Write-Host "`nEnsuring storage container exists..."
 
-$finalVhd = Get-VHD -Path $vhdPath
-Write-Host "Final VHD size: $($finalVhd.Size) bytes ($([Math]::Round($finalVhd.Size / 1GB, 2)) GB)"
-
-# Verify Azure resource group exists
-try {
-    $null = Get-AzResourceGroup -Name $ResourceGroup -ErrorAction Stop
-    Write-Host "`nUsing existing resource group: $ResourceGroup"
-} catch {
-    throw "Resource group '$ResourceGroup' not found. Please create it first or specify an existing resource group."
-}
-
-# Generate unique names for Azure resources
-$timestamp = Get-Date -Format "yyyyMMddHHmmss"
-$diskName = "$ImageName-disk-$timestamp"
-$diskSizeGB = [Math]::Ceiling($finalVhd.Size / 1GB)
-
-# Determine Azure OS type
-$azureOsType = if ($OSType -eq 'windows') { 'Windows' } else { 'Linux' }
-
-Write-Host "`nCreating empty managed disk for upload..."
-Write-Host "Disk name: $diskName"
-Write-Host "Disk size: $diskSizeGB GB"
-Write-Host "OS type: $azureOsType"
-
-# Create empty managed disk configured for upload
-$diskConfig = New-AzDiskConfig `
-    -Location $Location `
-    -DiskSizeGB $diskSizeGB `
-    -AccountType $StorageType `
-    -OsType $azureOsType `
-    -HyperVGeneration 'V2' `
-    -CreateOption 'Upload'
-
-try {
-    $disk = New-AzDisk `
-        -ResourceGroupName $ResourceGroup `
-        -DiskName $diskName `
-        -Disk $diskConfig
-    
-    Write-Host "Empty managed disk created successfully"
-} catch {
-    throw "Failed to create managed disk: $_"
-}
+# Capture stderr and stdout separately to get full error details
+$tempErrorFile = [System.IO.Path]::GetTempFileName()
+$tempOutputFile = [System.IO.Path]::GetTempFileName()
 
 try {
-    # Grant access for upload (24 hours should be more than enough)
-    Write-Host "`nGranting write access to managed disk..."
-    $diskAccess = Grant-AzDiskAccess `
-        -ResourceGroupName $ResourceGroup `
-        -DiskName $diskName `
-        -DurationInSecond 86400 `
-        -Access 'Write'
-    
-    Write-Host "Upload SAS URL obtained"
-    
-    # Upload VHD using Add-AzVhd (this handles the upload protocol efficiently)
-    Write-Host "`nUploading VHD to Azure..."
-    Write-Host "This may take a while depending on VHD size and connection speed..."
-    
-    $uploadJob = Add-AzVhd `
-        -ResourceGroupName $ResourceGroup `
-        -Destination $diskAccess.AccessSAS `
-        -LocalFilePath $vhdPath `
-        -NumberOfUploaderThreads 8
-    
-    Write-Host "VHD upload completed successfully"
-    
-    # Revoke access to the disk
-    Write-Host "`nRevoking disk access..."
-    Revoke-AzDiskAccess `
-        -ResourceGroupName $ResourceGroup `
-        -DiskName $diskName | Out-Null
-    
-    Write-Host "Disk access revoked"
-    
-    if (-not $SkipImageCreation) {
-        # Create managed image from the uploaded disk
-        Write-Host "`nCreating managed image..."
-        Write-Host "Image name: $ImageName"
-        
-        $imageConfig = New-AzImageConfig `
-            -Location $Location `
-            -HyperVGeneration 'V2'
-        
-        $imageConfig = Set-AzImageOsDisk `
-            -Image $imageConfig `
-            -OsType $azureOsType `
-            -OsState 'Generalized' `
-            -ManagedDiskId $disk.Id
-        
-        $image = New-AzImage `
-            -ResourceGroupName $ResourceGroup `
-            -ImageName $ImageName `
-            -Image $imageConfig
-        
-        Write-Host "Managed image created successfully"
-        
-        # Clean up the temporary disk (image now contains a copy)
-        Write-Host "`nCleaning up temporary disk..."
-        Remove-AzDisk `
-            -ResourceGroupName $ResourceGroup `
-            -DiskName $diskName `
-            -Force | Out-Null
-        
-        Write-Host "Temporary disk cleanup completed"
+    # Run az command and capture output to files
+    Start-Process -FilePath "az" -ArgumentList "storage","container","create","--account-name",$StorageAccount,"--name",$ContainerName,"--output","json" -NoNewWindow -Wait -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempErrorFile
+    $createExitCode = $LASTEXITCODE
+
+    $stdOutput = Get-Content $tempOutputFile -Raw -ErrorAction SilentlyContinue
+    $stdError = Get-Content $tempErrorFile -Raw -ErrorAction SilentlyContinue
+
+    Write-Host "Command exit code: $createExitCode"
+    if ($stdOutput) { Write-Host "Output: $stdOutput" }
+    if ($stdError) { Write-Host "Error: $stdError" }
+
+    if ($createExitCode -ne 0) {
+        # Container creation failed, check if it already exists
+        Write-Host "Container creation failed, checking if it exists..."
+
+        # Clear temp files
+        Clear-Content $tempOutputFile -ErrorAction SilentlyContinue
+        Clear-Content $tempErrorFile -ErrorAction SilentlyContinue
+
+        Start-Process -FilePath "az" -ArgumentList "storage","container","exists","--account-name",$StorageAccount,"--name",$ContainerName,"--output","tsv" -NoNewWindow -Wait -RedirectStandardOutput $tempOutputFile -RedirectStandardError $tempErrorFile
+        $existsExitCode = $LASTEXITCODE
+
+        $existsOutput = Get-Content $tempOutputFile -Raw -ErrorAction SilentlyContinue
+        $existsError = Get-Content $tempErrorFile -Raw -ErrorAction SilentlyContinue
+
+        if ($existsExitCode -eq 0 -and $existsOutput.Trim() -eq "true") {
+            Write-Host "Container '$ContainerName' already exists"
+        } else {
+            throw "Failed to create or verify container '$ContainerName'. Create error: $stdError. Exists error: $existsError"
+        }
+    } else {
+        Write-Host "Container '$ContainerName' ready"
     }
-    
-} catch {
-    # Clean up on failure
-    Write-Host "Upload failed, cleaning up resources..."
-    
-    try {
-        Revoke-AzDiskAccess -ResourceGroupName $ResourceGroup -DiskName $diskName -ErrorAction SilentlyContinue | Out-Null
-        Remove-AzDisk -ResourceGroupName $ResourceGroup -DiskName $diskName -Force -ErrorAction SilentlyContinue | Out-Null
-    } catch {
-        Write-Warning "Failed to clean up temporary disk: $diskName"
-    }
-    
-    throw "Azure upload failed: $_"
-    
 } finally {
-    # Clean up local VHD file (only if we converted from VHDX)
-    if (-not $alreadyVhd -and (Test-Path $vhdPath)) {
-        Write-Host "`nCleaning up converted VHD file..."
-        Remove-Item -Path $vhdPath -Force
+    # Clean up temp files
+    Remove-Item $tempErrorFile -Force -ErrorAction SilentlyContinue
+    Remove-Item $tempOutputFile -Force -ErrorAction SilentlyContinue
+}
+
+# Generate container URL and target path
+$containerUrl = "https://$StorageAccount.blob.core.windows.net/$ContainerName"
+$targetPath = "$containerUrl/$BlobPrefix/"
+Write-Host "Target container: $containerUrl"
+Write-Host "Target path: $BlobPrefix/"
+
+# Upload VHD directory to blob storage
+Write-Host "`nUploading VHD directory to blob storage..."
+Write-Host "This may take a while depending on VHD size and connection speed..."
+
+try {
+    # Generate SAS token for container upload (8 hours for large uploads)
+    Write-Host "Generating container SAS token for upload..."
+    $expiryTime = (Get-Date).AddHours(8).ToString("yyyy-MM-ddTHH:mm:ssZ")
+    $sasToken = az storage container generate-sas --account-name $StorageAccount --name $ContainerName --permissions rwcdl --expiry $expiryTime --output tsv
+
+    if ($LASTEXITCODE -ne 0 -or -not $sasToken) {
+        throw "Failed to generate SAS token for container upload"
+    }
+
+    Write-Host "Container SAS token generated successfully"
+
+    $destinationUrl = "$containerUrl/$BlobPrefix/?$sasToken"
+    $jobIdFile = Join-Path $BuildPath "azcopy-job-id.txt"
+
+    # Check for existing job to resume first
+    if (Test-Path $jobIdFile) {
+        $existingJobId = Get-Content $jobIdFile -Raw -ErrorAction SilentlyContinue
+        if ($existingJobId) {
+            Write-Host "`nFound existing upload job: $($existingJobId.Trim())"
+
+            # Check job status first
+            Write-Host "Checking job status..."
+            $jobStatusOutput = & $azcopyPath jobs show $existingJobId.Trim() 2>&1
+            $jobStatusExitCode = $LASTEXITCODE
+
+            if ($jobStatusExitCode -eq 0) {
+                $jobStatus = "Unknown"
+                foreach ($line in $jobStatusOutput) {
+                    if ($line -match "Final Job Status:\s*(.+)") {
+                        $jobStatus = $matches[1].Trim()
+                        break
+                    }
+                }
+
+                Write-Host "Job status: $jobStatus"
+
+                if ($jobStatus -eq "Failed") {
+                    Write-Host "Job has failed status and cannot be resumed. Cleaning up and starting fresh..."
+                    & $azcopyPath jobs remove $existingJobId.Trim() 2>&1 | Out-Null
+                    Remove-Item $jobIdFile -Force -ErrorAction SilentlyContinue
+                    Write-Host "Removed failed job and will start new upload"
+                } elseif ($jobStatus -eq "InProgress") {
+                    Write-Host "Attempting to resume in-progress upload..."
+                    # Use Storage Explorer environment for resume
+                    $env:AZCOPY_CONCURRENCY_VALUE = ""
+                    $env:AZCOPY_CRED_TYPE = ""
+                    $resumeOutput = & $azcopyPath jobs resume $existingJobId.Trim() --destination-sas $sasToken 2>&1
+                    $resumeExitCode = $LASTEXITCODE
+                    # Reset environment
+                    $env:AZCOPY_CONCURRENCY_VALUE = "AUTO"
+                    $env:AZCOPY_CRED_TYPE = "Anonymous"
+
+                    Write-Host "Resume exit code: $resumeExitCode"
+                    if ($resumeOutput -and $resumeOutput.Count -gt 0) {
+                        Write-Host "Resume output:"
+                        $resumeOutput | ForEach-Object { Write-Host "  $_" }
+                    }
+
+                    if ($resumeExitCode -eq 0) {
+                        Write-Host "Previous upload resumed and completed successfully!"
+                        Remove-Item $jobIdFile -Force -ErrorAction SilentlyContinue
+                        Write-Host "VHD directory upload completed successfully"
+                        return
+                    } else {
+                        Write-Host "Failed to resume in-progress job (exit code: $resumeExitCode)"
+                        Write-Host "This may be due to expired SAS token or network issues."
+                        Write-Host "Starting fresh upload instead..."
+                        & $azcopyPath jobs remove $existingJobId.Trim() 2>&1 | Out-Null
+                        Remove-Item $jobIdFile -Force -ErrorAction SilentlyContinue
+                    }
+                } else {
+                    Write-Host "Job status '$jobStatus' - cleaning up and starting fresh..."
+                    & $azcopyPath jobs remove $existingJobId.Trim() 2>&1 | Out-Null
+                    Remove-Item $jobIdFile -Force -ErrorAction SilentlyContinue
+                }
+            } else {
+                Write-Host "Could not check job status (exit code: $jobStatusExitCode) - starting fresh..."
+                Remove-Item $jobIdFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # Upload VHD files individually to avoid deep directory structure
+    Write-Host "Uploading VHD files with network cap: $CapMbps Mbps"
+    Write-Host "Source: $vhdDir"
+    Write-Host "Target: $BlobPrefix/"
+
+    # Get all VHD files
+    $vhdFiles = Get-ChildItem -Path $vhdDir -Filter "*.vhd"
+    if ($vhdFiles.Count -eq 0) {
+        throw "No VHD files found in directory: $vhdDir"
+    }
+
+    # Upload VHD files with wildcard pattern
+    $sourcePattern = Join-Path $vhdDir "*.vhd"
+
+    # Configure AzCopy environment like Storage Explorer
+    $env:AZCOPY_CONCURRENCY_VALUE = ""
+    $env:AZCOPY_CRED_TYPE = ""
+
+    # Capture azcopy output to extract job ID
+    Write-Host "Running AzCopy command like Storage Explorer..."
+    Write-Host "Source: $sourcePattern"
+    Write-Host "Destination: $destinationUrl"
+    Write-Host "Bandwidth cap: $CapMbps Mbps"
+
+    # Ensure PowerShell shows progress bars
+    $originalProgressPreference = $ProgressPreference
+    $ProgressPreference = "Continue"
+
+    # Use Storage Explorer's exact approach with ALL parameters
+    # Use real-time output technique to show progress like Storage Explorer
+    Write-Host "Starting upload with real-time progress using Storage Explorer settings..."
+    Write-Host "Progress preference: $ProgressPreference"
+
+    try {
+        # Run AzCopy with direct console output for full progress display
+        Write-Host "Running AzCopy with Storage Explorer settings and full progress display..."
+        & $azcopyPath copy $sourcePattern $destinationUrl --overwrite=prompt --from-to=LocalBlob --blob-type Detect --follow-symlinks --cap-mbps $CapMbps --check-length=true --put-md5 --disable-auto-decoding=false --recursive --log-level=INFO
+        $uploadExitCode = $LASTEXITCODE
+
+        # Get the latest job ID after completion (Method 1)
+        if ($uploadExitCode -eq 0) {
+            Write-Host "`nCapturing job ID for future reference..."
+            $jobsList = & $azcopyPath jobs list --output-type=json 2>$null
+            if ($jobsList) {
+                try {
+                    $latestJob = ($jobsList | ConvertFrom-Json)[0]  # Most recent job
+                    $jobId = $latestJob.JobId
+                    if ($jobId) {
+                        Write-Host "Latest job ID: $jobId"
+                        Set-Content -Path $jobIdFile -Value $jobId
+                        Write-Host "Job ID saved to: $jobIdFile"
+                    }
+                } catch {
+                    Write-Host "Note: Could not parse job ID from AzCopy jobs list (this is not critical)"
+                }
+            }
+        }
+    } finally {
+        # Restore original progress preference
+        $ProgressPreference = $originalProgressPreference
+    }
+
+    # Reset environment like Storage Explorer
+    $env:AZCOPY_CONCURRENCY_VALUE = "AUTO"
+    $env:AZCOPY_CRED_TYPE = "Anonymous"
+
+    if ($uploadExitCode -eq 0) {
+        Write-Host "Upload completed successfully!"
+        # Clean up any old job ID files
+        if (Test-Path $jobIdFile) {
+            Remove-Item $jobIdFile -Force -ErrorAction SilentlyContinue
+        }
+    } else {
+        Write-Host "Upload failed with exit code: $uploadExitCode"
+        throw "VHD directory upload failed. Using Storage Explorer approach with --blob-type Detect should be more reliable."
+    }
+
+    Write-Host "VHD directory upload completed successfully"
+
+} catch {
+    throw "Azure blob upload failed: $_"
+
+} finally {
+    # Clean up temporary files if any exist
+    Get-ChildItem -Path $vhdDir -Filter "*_fixed.vhd*" -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Host "Cleaning up temporary file: $($_.Name)"
+        Remove-Item -Path $_.FullName -Force -ErrorAction SilentlyContinue
     }
 }
 
 Write-Host "`n==========================================="
-Write-Host "Azure upload completed successfully!"
-Write-Host "Resource Group: $ResourceGroup"
-Write-Host "Location: $Location"
-
-if (-not $SkipImageCreation) {
-    Write-Host "Managed Image: $ImageName"
-    Write-Host ""
-    Write-Host "You can now create VMs from this image using:"
-    Write-Host "az vm create --resource-group $ResourceGroup --name MyVM --image $ImageName --admin-username azureuser"
-} else {
-    Write-Host "Managed Disk: $diskName"
-    Write-Host ""
-    Write-Host "You can now create an image or VM from this disk"
-}
+Write-Host "Azure VHD directory upload completed successfully!"
+Write-Host "Storage Account: $StorageAccount"
+Write-Host "Container: $ContainerName"
+Write-Host "Blob Prefix: $BlobPrefix"
+Write-Host "Container URL: $containerUrl"
+Write-Host ""
+Write-Host "VHD files uploaded to: $targetPath"
+Write-Host ""
+Write-Host "To create a managed disk from uploaded VHDs, use:"
+Write-Host "az disk create --resource-group <RG> --name <DISK_NAME> --source <VHD_BLOB_URL>"
+Write-Host ""
+Write-Host "To create a managed image from uploaded VHDs, use:"
+Write-Host "az image create --resource-group <RG> --name <IMAGE_NAME> --source <VHD_BLOB_URL> --os-type <OS_TYPE>"
 Write-Host "==========================================="
 
 exit 0

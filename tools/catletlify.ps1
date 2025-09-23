@@ -49,8 +49,9 @@ try{
         $currentPath = $drive.Path
         $path = [System.IO.Path]::GetDirectoryName($currentPath)
         $name = $names[$counter]
-        $newFileName = "$name.vhdx"
-        
+        $currentExtension = [System.IO.Path]::GetExtension($currentPath)
+        $newFileName = "$name$currentExtension"
+
         $newPath = [System.IO.Path]::Combine($path, $newFileName)
 
         if($newPath -ne $currentPath) {
