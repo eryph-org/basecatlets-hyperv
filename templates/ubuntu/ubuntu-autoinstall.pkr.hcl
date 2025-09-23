@@ -19,7 +19,7 @@ variable "cpus" {
 
 variable "disk_size" {
   type    = string
-  default = "65536"
+  default = "4096"
 }
 
 variable "http_proxy" {

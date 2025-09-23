@@ -59,6 +59,7 @@ variable "cpus" {
 
 source "hyperv-vmcx" "repack" {
   clone_from_vmcx_path = "${var.export_path}"
+  copy_in_compare      = false
   communicator         = "winrm"
   winrm_username       = "${var.username}"
   winrm_password       = "${var.password}"
@@ -71,7 +72,7 @@ source "hyperv-vmcx" "repack" {
   headless             = true
   memory               = var.memory
   cpus                 = var.cpus
-  
+
   # DO NOT set enable_secure_boot or enable_tpm here
   # The hyperv-vmcx builder inherits these settings from the source VM
   # Setting them explicitly causes errors when TPM is already initialized:

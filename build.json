@@ -24,7 +24,9 @@
     "rhel-compatible": [
         "almalinux-8",
         "almalinux-9",
+        "almalinux-10",
         "oracle-8",
-        "oracle-9"
+        "oracle-9",
+        "oracle-10"
     ]
 }

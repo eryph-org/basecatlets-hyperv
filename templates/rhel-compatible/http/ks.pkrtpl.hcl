@@ -34,32 +34,8 @@ part / --fstype=xfs --size=1 --grow --asprimary
 # Bootloader configuration - Microsoft Azure/Hyper-V requirements
 bootloader --location=mbr --append="console=tty1 console=ttyS0,115200n8 earlyprintk=ttyS0 net.ifnames=0 rootdelay=300"
 
-# Package selection - minimal cloud essentials only (following AlmaLinux cloud image approach)
-%packages --ignoremissing
-@core
-@base
-cloud-init
-cloud-utils-growpart
-hyperv-daemons
-WALinuxAgent
-kernel
-grub2-efi-x64
-efibootmgr
-shim-x64
-sudo
-python3
-python3-pip
-wget
-curl
-openssh-server
-NetworkManager
-# Remove unnecessary packages
--plymouth
--plymouth-core-libs
--plymouth-scripts
--NetworkManager-team
--NetworkManager-tui
-%end
+# Package selection
+${package_list}
 
 # Services configuration
 services --enabled=sshd,NetworkManager,cloud-init,cloud-final,cloud-config,cloud-init-local

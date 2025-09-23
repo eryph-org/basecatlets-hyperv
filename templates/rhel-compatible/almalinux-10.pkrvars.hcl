@@ -22,6 +22,30 @@ username = "packer"
 password = "packer"
 boot_wait = "10s"
 
+# Package list for AlmaLinux (minimal configuration following official Azure image)
+package_list = <<-EOF
+%packages --ignoremissing
+dracut-config-generic
+grub2-pc
+tar
+rsyslog-logrotate
+-*firmware
+-dracut-config-rescue
+-firewalld
+cloud-init
+cloud-utils-growpart
+# C libraries required for .NET self-contained apps (eryph-guest-services)
+glibc
+libgcc
+libstdc++
+libicu
+%end
+
+# disable kdump service
+%addon com_redhat_kdump --disable
+%end
+EOF
+
 # Kernel configuration - use standard RHEL-compatible kernel
 kernel_packages = "kernel\nkernel-devel"
 kernel_exclusions = ""

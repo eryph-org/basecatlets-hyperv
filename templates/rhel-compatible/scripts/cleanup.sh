@@ -186,6 +186,10 @@ history -c
 echo "Syncing filesystems..."
 sync
 
+# Randomize root password for security
+echo "Randomizing root password..."
+openssl rand -base64 32 | passwd --stdin root || true
+
 # Deprovision WALinuxAgent if installed (like AlmaLinux playbook)
 if [ -f /usr/sbin/waagent ]; then
     echo "Deprovisioning WALinuxAgent..."

@@ -19,7 +19,7 @@ variable "cpus" {
 
 variable "disk_size" {
   type    = string
-  default = "8192"
+  default = "4096"
 }
 
 variable "http_proxy" {
@@ -97,6 +97,11 @@ variable "boot_wait" {
   default = "10s"
 }
 
+variable "package_list" {
+  type    = string
+  default = ""
+}
+
 variable "kernel_packages" {
   type    = string
   default = "kernel"
@@ -147,6 +152,7 @@ source "hyperv-iso" "install" {
         kernel_packages = var.kernel_packages
         kernel_exclusions = var.kernel_exclusions
         distro_specific_post = var.distro_specific_post
+        package_list = var.package_list
     })
   }
 }
