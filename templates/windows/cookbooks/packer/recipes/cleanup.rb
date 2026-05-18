@@ -45,7 +45,6 @@ powershell_script 'remove unnecesary directories' do
       "C:\\Recovery",
       "$env:localappdata\\temp\\*",
       "$env:windir\\logs",
-      "$env:windir\\temp",
       "$env:windir\\winsxs\\manifestcache",
       "C:\\WindowsAzure\\Logs",
       "C:\\Packages\\Plugins",
@@ -60,6 +59,16 @@ powershell_script 'remove unnecesary directories' do
               } catch { $global:error.RemoveAt(0) }
           }
       }
+
+  # Clean Windows Temp but exclude packer* files (those are handled by prepare_sysprep.ps1)
+  Write-Host "Cleaning Windows Temp (excluding packer files)..."
+  Get-ChildItem -Path "$env:windir\\temp" -Exclude "packer*" -ErrorAction SilentlyContinue | % {
+      try {
+        Takeown /d Y /R /f $_.FullName
+        Icacls $_.FullName /GRANT:r administrators:F /T /c /q  2>&1 | Out-Null
+        Remove-Item $_.FullName -Recurse -Force | Out-Null
+      } catch { $global:error.RemoveAt(0) }
+  }
   EOH
 end
 
@@ -74,4 +83,10 @@ end
   execute "Cleaning the #{log} event log" do
     command "wevtutil clear-log #{log}"
   end
+end
+
+# Copy sysprep script to temp directory after cleanup
+cookbook_file 'C:\Windows\Temp\sysprep.ps1' do
+  source 'sysprep.ps1'
+  action :create
 end

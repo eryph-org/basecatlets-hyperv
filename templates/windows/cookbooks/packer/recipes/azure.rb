@@ -16,12 +16,6 @@ windows_package 'Windows Azure VM Agent' do
   action :install
 end
 
-# Ensure the agent service is set to automatic
-windows_service 'WindowsAzureGuestAgent' do
-  action [:enable, :start]
-  startup_type :automatic
-  ignore_failure true  # Service might not be immediately available after install
-end
 
 # Set registry values for Azure VM Agent
 registry_key 'HKLM\SOFTWARE\Microsoft\Windows Azure' do

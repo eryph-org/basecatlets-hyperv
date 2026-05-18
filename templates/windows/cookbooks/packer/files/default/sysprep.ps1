@@ -76,6 +76,47 @@ if($sysprep_succeded -ne $true){
  ## these changes are applied after sysprep:
 ## -----------------------------------------------
 
+# Enable Azure services and set to auto-start
+Write-Host "Configuring Azure services..."
+try {
+    # Configure WindowsAzureGuestAgent service
+    $service = Get-Service -Name "WindowsAzureGuestAgent" -ErrorAction SilentlyContinue
+    if ($service) {
+        Write-Host "Configuring WindowsAzureGuestAgent service..."
+        Set-Service -Name "WindowsAzureGuestAgent" -StartupType Automatic -ErrorAction SilentlyContinue
+        Stop-Service -Name "WindowsAzureGuestAgent" -ErrorAction SilentlyContinue
+        Write-Host "WindowsAzureGuestAgent service configured"
+    } else {
+        Write-Host "WindowsAzureGuestAgent service not found, skipping"
+    }
+
+    # Configure RdAgent service
+    $service = Get-Service -Name "RdAgent" -ErrorAction SilentlyContinue
+    if ($service) {
+        Write-Host "Configuring RdAgent service..."
+        Set-Service -Name "RdAgent" -StartupType Automatic -ErrorAction SilentlyContinue
+        Stop-Service -Name "RdAgent" -ErrorAction SilentlyContinue
+        Write-Host "RdAgent service configured"
+    } else {
+        Write-Host "RdAgent service not found, skipping"
+    }
+
+    Write-Host "Azure services configuration completed"
+} catch {
+    Write-Warning "Failed to configure Azure services: $_"
+}
+
+# Clean up Azure logs directory
+Write-Host "Cleaning up Azure logs..."
+try {
+    if (Test-Path "C:\WindowsAzure\Logs") {
+        Remove-Item "C:\WindowsAzure\Logs" -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Host "Azure logs directory cleaned up"
+    }
+} catch {
+    # Ignore errors
+}
+
 # disable network discovery
 New-Item -Path "HKLM:\System\CurrentControlSet\Control\Network\NewNetworkWindowOff\" -ErrorAction SilentlyContinue | Out-Null
 

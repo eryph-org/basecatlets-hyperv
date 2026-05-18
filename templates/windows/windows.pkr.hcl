@@ -120,17 +120,16 @@ build {
   provisioner "windows-restart" {}
 
   provisioner "windows-update" {}
-  
+
   provisioner "windows-restart" {}
 
   provisioner "windows-update" {}
-  
+
   provisioner "windows-restart" {}
 
   provisioner "windows-update" {}
-  
-  provisioner "windows-restart" {}
 
+  provisioner "windows-restart" {}
   # Run finalize chef recipes
   provisioner "powershell" {
     elevated_password = "${var.password}"
@@ -150,14 +149,17 @@ build {
   provisioner "windows-restart" {}
   
   
-  //this script is embedded in prepare_sysprep.ps1 
-  //uncomment this block if you would like to see script output for diagnostics
+  // sysprep.ps1 is delivered to C:\Windows\Temp\ by the cleanup recipe and
+  // executed by packer's shutdown_command. Uncomment the block below to run it
+  // as a provisioner instead so its output appears live in the build console.
+  // Note: the script calls Stop-Computer, which exits non-zero under a
+  // provisioner; only run this way for diagnostics, not production builds.
 
   /*
   provisioner "powershell" {
     elevated_password = "${var.password}"
     elevated_user     = "${var.username}"
-    script            = "${path.root}/scripts/sysprep.ps1"
+    script            = "${path.root}/cookbooks/packer/files/default/sysprep.ps1"
     timeout           = "15m"
 
   }
