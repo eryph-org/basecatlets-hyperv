@@ -3,6 +3,7 @@ builds/*
 templates/windows/crash.log
 
 # Plugin development
+plugin-dev/*
 plugin-dev/packer-plugin-hyperv/
 plugin-dev/*.exe
 plugin-dev/*.SHA256SUM
