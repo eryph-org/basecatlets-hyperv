@@ -4,3 +4,7 @@ include_recipe 'packer::disable_screensaver'
 include_recipe 'packer::ui_tweaks'
 include_recipe 'packer::disable_recoverypart'
 
+unless windows_workstation?
+ include_recipe 'packer::disable_search'
+end
+

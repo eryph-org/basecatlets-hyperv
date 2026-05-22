@@ -1,6 +1,7 @@
 /**/packer_cache/*
 builds/*
 templates/windows/crash.log
+__pycache__/
 
 # Plugin development
 plugin-dev/*
