@@ -1,0 +1,38 @@
+# Build-host catlet for the cloud-image-customize Linux build flow.
+#
+# One-time creation:
+#   New-Catlet -Name hyperv-boxes-build -ProjectName default `
+#     -Config (Get-Content -Raw .\templates\build-host\catlet.yaml)
+#
+# build-cloud.ps1 starts it, waits for egs, scp's the worker in, runs
+# libguestfs/qemu inside. Memory/cpu sized for libguestfs's appliance and
+# virt-sparsify scratch. If /dev/kvm is unavailable the worker falls back
+# to LIBGUESTFS_BACKEND=direct (TCG) automatically.
+
+name: hyperv-boxes-build
+parent: dbosoft/ubuntu-22.04/starter
+
+cpu:
+  count: 4
+
+memory:
+  startup: 4096
+
+capabilities:
+  - nested_virtualization
+
+fodder:
+- name: install-build-tools
+  type: cloud-config
+  content:
+    package_update: true
+    packages:
+      - libguestfs-tools
+      - qemu-utils
+      - curl
+      - ca-certificates
+    runcmd:
+      # libguestfs's appliance needs read access to the host kernel image;
+      # Ubuntu defaults to mode 0600 on /boot/vmlinuz-* which blocks it.
+      - chmod 0644 /boot/vmlinuz-*
+      - install -d -m 0755 /var/tmp/hyperv-boxes-build/cache

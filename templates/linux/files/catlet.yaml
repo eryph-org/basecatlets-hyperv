@@ -1,0 +1,12 @@
+cpu:
+  count: 2
+memory:
+  startup: 2048
+drives:
+- name: sda
+network_adapters:
+- name: eth0
+capabilities:
+- name: secure_boot
+  details:
+  - Template:MicrosoftUEFICertificateAuthority
