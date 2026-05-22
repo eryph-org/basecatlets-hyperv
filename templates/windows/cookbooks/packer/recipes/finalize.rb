@@ -1,5 +1,4 @@
 
-include_recipe 'packer::cloudinit'
 include_recipe 'packer::eryph'
 include_recipe 'packer::apps'
 include_recipe 'packer::azure'

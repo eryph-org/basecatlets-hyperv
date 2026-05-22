@@ -79,12 +79,7 @@ Write-Host "Starting sysprep"
 # losing a race against SearchIndexer.exe (intermittent 0x5 / 0x7a failures).
 Stop-Service WSearch -Force -ErrorAction SilentlyContinue
 
-if (Test-Path "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\Unattend.xml") {
-    & c:\windows\system32\sysprep\sysprep.exe /oobe /generalize /quit /mode:vm /quiet /unattend:"C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\Unattend.xml"
-}
-else {
-    & c:\windows\system32\sysprep\sysprep.exe /oobe /generalize /quit /mode:vm /quiet
-}
+& c:\windows\system32\sysprep\sysprep.exe /oobe /generalize /quit /mode:vm /quiet
 
 # Poll for sysprep completion so Packer's build log shows sysprep errors
 # directly. The historic "pipeline has been stopped" failures hit the

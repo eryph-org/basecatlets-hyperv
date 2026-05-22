@@ -72,12 +72,6 @@ powershell_script 'remove unnecesary directories' do
   EOH
 end
 
-# Uninstall Git for Windows (installed for patching)
-windows_package 'git' do
-  action :remove
-  ignore_failure true
-end
-
 # clean all of the event logs
 %w(Application Security Setup System).each do |log|
   execute "Cleaning the #{log} event log" do

@@ -7,9 +7,6 @@ include_recipe 'packer::configure_power'
 # Ensure Azure VM Agent is installed for universal compatibility
 include_recipe 'packer::azure'
 
-# Ensure cloudbase-init is installed and reset with eryph configuration
-include_recipe 'packer::cloudinit_reset'
-
 # Clean up temporary files, event logs, etc.
 include_recipe 'packer::cleanup'
 

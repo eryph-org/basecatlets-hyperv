@@ -53,12 +53,6 @@
           <Path>powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Setup\Scripts\azure-detect.ps1</Path>
           <Description>Enable Azure VM Agent services on Azure deployments</Description>
         </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Order>10</Order>
-          <Path>cmd.exe /c ""C:\Program Files\Cloudbase Solutions\Cloudbase-Init\Python\Scripts\cloudbase-init.exe" --config-file "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\cloudbase-init-unattend.conf" &amp;&amp; exit 1 || exit 2"</Path>
-          <Description>Run Cloudbase-Init to set the hostname</Description>
-          <WillReboot>OnRequest</WillReboot>
-        </RunSynchronousCommand>
       </RunSynchronous>
     </component>
   </settings>
