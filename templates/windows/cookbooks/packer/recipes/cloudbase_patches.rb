@@ -29,9 +29,16 @@ cookbook_file 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\Python\Lib\si
   source 'cloudbase-patches/userdataplugins/includeurl.py'
 end
 
+# Copy Azure CustomData metadata service (reads C:\AzureData\CustomData.bin
+# after Microsoft's Provisioning Agent has consumed and ejected the
+# Azure config-drive ISO).
+cookbook_file 'C:\Program Files\Cloudbase Solutions\Cloudbase-Init\Python\Lib\site-packages\cloudbaseinit\metadata\services\azurecustomdata.py' do
+  source 'cloudbase-patches/metadata/services/azurecustomdata.py'
+end
+
 
 # Apply patches for eryph KVP reporting functionality and include URL plugin
-%w[001-add-hyperv-kvp-config.patch 002-integrate-kvp-reporting.patch 003-fix-azure-service.patch 004-fix-ovf-service.patch 005-add-include-url-plugin.patch].each do |patch_file|
+%w[001-add-hyperv-kvp-config.patch 002-integrate-kvp-reporting.patch 004-fix-ovf-service.patch 005-add-include-url-plugin.patch].each do |patch_file|
   cookbook_file "C:\\Windows\\Temp\\#{patch_file}" do
     source "cloudbase-patches/#{patch_file}"
   end

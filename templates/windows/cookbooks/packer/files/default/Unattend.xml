@@ -33,6 +33,26 @@
           <Path>cmd.exe /c "rmdir c:\users\packer /s /q"</Path>
           <Description>Remove packer user directory</Description>
         </RunSynchronousCommand>
+        <!--
+          Azure-only provisioning hooks (no-op on non-Azure deploys).
+        -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>3</Order>
+          <Path>cmd.exe /c "(for %X in (z y x w v u t s r q p o n m l k j i h g f e d c b a) do @(DIR %X:\ 1&gt;NUL 2&gt;&amp;1 &amp;&amp; if exist %X:\E6DA6616-8EC4-48E0-BE93-58CE6ACE3CFB.tag (%X:\Install.cmd &amp; exit))) &amp; exit 0"</Path>
+          <Description>Install Azure Provisioning Agent from ConfigDrive ISO</Description>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>4</Order>
+          <Path>cmd.exe /c "if exist %windir%\OEM\Unattend.wsf ( cscript %windir%\OEM\Unattend.wsf //Job:setup //NoLogo //B /ConfigurationPass:specialize ) else ( if exist %windir%\OEM\provision.cmd %windir%\OEM\provision.cmd &gt;&gt;%windir%\Panther\WaSetup.log 2&gt;&amp;1 )"</Path>
+          <Description>Execute the Azure Provisioning Agent</Description>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Order>5</Order>
+          <Path>powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass -File C:\Windows\Setup\Scripts\azure-detect.ps1</Path>
+          <Description>Enable Azure VM Agent services on Azure deployments</Description>
+        </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Order>10</Order>
           <Path>cmd.exe /c ""C:\Program Files\Cloudbase Solutions\Cloudbase-Init\Python\Scripts\cloudbase-init.exe" --config-file "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\cloudbase-init-unattend.conf" &amp;&amp; exit 1 || exit 2"</Path>
