@@ -13,3 +13,7 @@ plugin-dev/*.SHA256SUM
 tools/plugins/
 .claude/*
 tools/azcopy.exe
+
+# Local egs-service build dropped by guest-services/packaging/pack-local-windows.ps1
+# — for testing local egs changes against a hyperv-boxes catlet build.
+templates/windows/cookbooks/packer/files/default/egs-local.zip
