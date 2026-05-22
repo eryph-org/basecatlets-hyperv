@@ -18,108 +18,21 @@ Write-Host "Cleaning Temp Files..."
 try {
   Takeown /d Y /R /f "C:\Windows\Temp\*"
   Icacls "C:\Windows\Temp\*" /GRANT:r administrators:F /T /c /q  2>&1
-  Remove-Item "C:\Windows\Temp\*" -Recurse -Force -ErrorAction SilentlyContinue
+  # Preserve post-sysprep.ps1 (the SYSTEM task script) and sysprep.log
+  # (transcript both scripts append to); everything else goes.
+  Get-ChildItem "C:\Windows\Temp" -Force -ErrorAction SilentlyContinue `
+      -Exclude "post-sysprep.ps1","sysprep.log" |
+      Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 } catch { }
 
 Write-Host "CHECKPOINT_01 Preparing sysprep"
 
-
-#Takeown /F "C:\Windows\System32\Sysprep\ActionFiles\Generalize.xml"
-#Icacls "C:\Windows\System32\Sysprep\ActionFiles\Generalize.xml" /GRANT:r administrators:F /T /c /q  2>&1
-#$generalizeContent = Get-Content C:\Windows\System32\Sysprep\ActionFiles\Generalize.xml
-
-# patch generalize.xml for error with VAN registry key in Windows Server 2016
-#$generalizeContent = $generalizeContent.Replace('HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\VAN\{7724F5B4-9A4A-4a93-AD09-B06F7AB31035}', 'HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\VAN\{7724F5B4-9A4A-4a93-AD09-B06F7AB31035}')
-#$generalizeContent | Set-Content -Path C:\Windows\System32\Sysprep\ActionFiles\Generalize.xml
-#icacls "C:\Windows\System32\Sysprep\ActionFiles\Generalize.xml" /setowner "NT Service\TrustedInstaller"
-
-Write-Host "Starting sysprep"
-
-if(Test-Path "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\Unattend.xml")
-{
-    &c:\windows\system32\sysprep\sysprep.exe /oobe /generalize /quit /mode:vm /quiet /unattend:"C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\Unattend.xml"
-}
-else {
-    &c:\windows\system32\sysprep\sysprep.exe /oobe /generalize /quit /mode:vm /quiet
-}
-
-$sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
-
-$timeLeft = 900
-$waits = 0
-while($sysprep_succeded -ne $true){
-    
-    Write-Host "Waiting for sysprep... ($timeLeft seconds left)"
-    $waits++
-    Start-Sleep -Seconds 10
-    $timeLeft-=10
-    $sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
-    if($waits -ge 90){
-        break
-    }
-}
-
-if($sysprep_succeded -ne $true){
-
-    Write-Host "Sysprep error log content:"
-    Get-Content "c:\Windows\System32\Sysprep\Panther\setuperr.log" -ErrorAction Continue
-
-    Write-Host "Sysprep log content:"
-    Get-Content "c:\Windows\System32\Sysprep\Panther\setupact.log" -ErrorAction Continue
-    
-    Write-Error "Sysprep failed" -ErrorAction Stop
-    return -1
- }
-
- Write-Host "CHECKPOINT_02: Sysprep completed"
-
- ## these changes are applied after sysprep:
-## -----------------------------------------------
-
-# Enable Azure services and set to auto-start
-Write-Host "Configuring Azure services..."
-try {
-    # Configure WindowsAzureGuestAgent service
-    $service = Get-Service -Name "WindowsAzureGuestAgent" -ErrorAction SilentlyContinue
-    if ($service) {
-        Write-Host "Configuring WindowsAzureGuestAgent service..."
-        Set-Service -Name "WindowsAzureGuestAgent" -StartupType Automatic -ErrorAction SilentlyContinue
-        Stop-Service -Name "WindowsAzureGuestAgent" -ErrorAction SilentlyContinue
-        Write-Host "WindowsAzureGuestAgent service configured"
-    } else {
-        Write-Host "WindowsAzureGuestAgent service not found, skipping"
-    }
-
-    # Configure RdAgent service
-    $service = Get-Service -Name "RdAgent" -ErrorAction SilentlyContinue
-    if ($service) {
-        Write-Host "Configuring RdAgent service..."
-        Set-Service -Name "RdAgent" -StartupType Automatic -ErrorAction SilentlyContinue
-        Stop-Service -Name "RdAgent" -ErrorAction SilentlyContinue
-        Write-Host "RdAgent service configured"
-    } else {
-        Write-Host "RdAgent service not found, skipping"
-    }
-
-    Write-Host "Azure services configuration completed"
-} catch {
-    Write-Warning "Failed to configure Azure services: $_"
-}
-
-# Clean up Azure logs directory
-Write-Host "Cleaning up Azure logs..."
-try {
-    if (Test-Path "C:\WindowsAzure\Logs") {
-        Remove-Item "C:\WindowsAzure\Logs" -Recurse -Force -ErrorAction SilentlyContinue
-        Write-Host "Azure logs directory cleaned up"
-    }
-} catch {
-    # Ignore errors
-}
-
-# disable network discovery
-New-Item -Path "HKLM:\System\CurrentControlSet\Control\Network\NewNetworkWindowOff\" -ErrorAction SilentlyContinue | Out-Null
-
+# Everything that sysprep itself undoes or rewrites (Administrator
+# re-enabled by /generalize, KVP guest exchange data refreshed by the
+# Integration Services, Azure logs regenerated, NewNetworkWindowOff reg
+# key reset) lives in post-sysprep.ps1, which runs as SYSTEM via a
+# Scheduled Task and is therefore immune to the WinRM logon teardown
+# that sysprep performs.
 
 # remove page file - disabled for now as there is currently no automatic re-enable on first boot
 
@@ -130,45 +43,84 @@ New-Item -Path "HKLM:\System\CurrentControlSet\Control\Network\NewNetworkWindowO
 #$pagefile = Get-WmiObject -Query "select * from Win32_PageFileSetting where name='c:\\pagefile.sys'"
 #$pagefile.Delete()
 
-Write-Host "Wiping empty space on disk..."
-
-$FilePath="c:\zero.tmp"
-$Volume = Get-WmiObject win32_logicaldisk -filter "DeviceID='C:'"
-$ArraySize= 64kb
-$SpaceToLeave= $Volume.Size * 0.05
-$FileSize= $Volume.FreeSpace - $SpacetoLeave
-$ZeroArray= new-object byte[]($ArraySize)
-
-$Stream= [io.File]::OpenWrite($FilePath)
-try {
-   $CurFileSize = 0
-    while($CurFileSize -lt $FileSize) {
-        $Stream.Write($ZeroArray,0, $ZeroArray.Length)
-        $CurFileSize +=$ZeroArray.Length
-    }
-}
-finally {
-    if($Stream) {
-        $Stream.Close()
-    }
+# --- register post-sysprep SYSTEM task -----------------------------------
+# A one-shot Scheduled Task running as NT AUTHORITY\SYSTEM picks up after
+# sysprep finishes. SYSTEM survives the logon teardown sysprep /generalize
+# performs on the WinRM session, so the cleanup and shutdown reliably run
+# even when this foreground pipeline is killed mid-sysprep.
+#
+# The trigger fires ~1 minute after registration; post-sysprep.ps1 itself
+# waits for Sysprep_succeeded.tag before doing anything destructive, so
+# the task tolerates sysprep still being in flight when it starts.
+Write-Host "Registering post-sysprep scheduled task (runs as SYSTEM)..."
+$postSysprepScript = "C:\Windows\Temp\post-sysprep.ps1"
+if (-not (Test-Path $postSysprepScript)) {
+    Write-Error "post-sysprep.ps1 not found at $postSysprepScript" -ErrorAction Stop
 }
 
-Remove-Item $FilePath
-Write-Host "CHECKPOINT_03: Cleanup completed"
+$taskAction    = New-ScheduledTaskAction -Execute "powershell.exe" `
+                    -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$postSysprepScript`""
+$taskTrigger   = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1)
+$taskPrincipal = New-ScheduledTaskPrincipal -UserId "NT AUTHORITY\SYSTEM" `
+                    -LogonType ServiceAccount -RunLevel Highest
+$taskSettings  = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries `
+                    -DontStopIfGoingOnBatteries `
+                    -ExecutionTimeLimit (New-TimeSpan -Minutes 18) `
+                    -StartWhenAvailable
 
-Write-Host "Randomize Administrator password and disable account"
-Add-Type -AssemblyName System.Web
-$adminPasswordPlain = [System.Web.Security.Membership]::GeneratePassword(30,4)
-$adminPassword = ConvertTo-SecureString $adminPasswordPlain -AsPlainText -Force
-$adminAccount = Get-LocalUser Administrator
-$adminAccount | Set-LocalUser -Password $adminPassword
-$adminAccount | Disable-LocalUser
+Register-ScheduledTask -TaskName "EryphPostSysprep" `
+                       -Action $taskAction -Trigger $taskTrigger `
+                       -Principal $taskPrincipal -Settings $taskSettings -Force | Out-Null
 
-Write-Host "Image building completed. Next step will disable packer user account and shutdown the machine"
+Write-Host "Starting sysprep"
 
-$packerAccount = Get-LocalUser packer -ErrorAction Continue
-$packerAccount | Disable-LocalUser -ErrorAction Continue
+# Stop the Windows Search service so the MSSrch_SysPrep_Cleanup provider can
+# create HKLM\SOFTWARE\Microsoft\Windows Search\PreventFromStart without
+# losing a race against SearchIndexer.exe (intermittent 0x5 / 0x7a failures).
+Stop-Service WSearch -Force -ErrorAction SilentlyContinue
 
-Write-Host "CHECKPOINT_04: Shutdown"
-Stop-Computer -Force -ErrorAction Continue
+if (Test-Path "C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\Unattend.xml") {
+    & c:\windows\system32\sysprep\sysprep.exe /oobe /generalize /quit /mode:vm /quiet /unattend:"C:\Program Files\Cloudbase Solutions\Cloudbase-Init\conf\Unattend.xml"
+}
+else {
+    & c:\windows\system32\sysprep\sysprep.exe /oobe /generalize /quit /mode:vm /quiet
+}
 
+# Poll for sysprep completion so Packer's build log shows sysprep errors
+# directly. The historic "pipeline has been stopped" failures hit the
+# *post-sysprep* work that used to follow this loop -- the poll itself
+# usually survives, and on success we now just hand off to the SYSTEM
+# task instead of doing more work in this fragile session.
+$sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
+$timeLeft = 900
+$waits = 0
+while ($sysprep_succeded -ne $true) {
+    Write-Host "Waiting for sysprep... ($timeLeft seconds left)"
+    $waits++
+    Start-Sleep -Seconds 10
+    $timeLeft -= 10
+    $sysprep_succeded = Test-Path c:\Windows\System32\Sysprep\Sysprep_succeeded.tag
+    if ($waits -ge 90) {
+        break
+    }
+}
+
+if ($sysprep_succeded -ne $true) {
+    Write-Host "Sysprep error log content:"
+    Get-Content "c:\Windows\System32\Sysprep\Panther\setuperr.log" -ErrorAction Continue
+
+    Write-Host "Sysprep log content:"
+    Get-Content "c:\Windows\System32\Sysprep\Panther\setupact.log" -ErrorAction Continue
+
+    # Drop the scheduled task so a doomed build doesn't accidentally shut
+    # the VM down later and obscure the failure for debugging.
+    Unregister-ScheduledTask -TaskName "EryphPostSysprep" -Confirm:$false -ErrorAction SilentlyContinue | Out-Null
+
+    Write-Error "Sysprep failed" -ErrorAction Stop
+    return -1
+}
+
+Write-Host "Sysprep completed in WinRM session; handing off to SYSTEM task for cleanup and shutdown"
+# Note: CHECKPOINT_02 is emitted by post-sysprep.ps1 (SYSTEM context) so it
+# is reliably written even if this WinRM pipeline is torn down mid-poll.
+Stop-Transcript -ErrorAction SilentlyContinue

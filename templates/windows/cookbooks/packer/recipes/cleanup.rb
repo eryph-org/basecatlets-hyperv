@@ -90,3 +90,13 @@ cookbook_file 'C:\Windows\Temp\sysprep.ps1' do
   source 'sysprep.ps1'
   action :create
 end
+
+# post-sysprep.ps1 is launched by a SYSTEM-context Scheduled Task that
+# sysprep.ps1 registers; it finishes the work that cannot run before
+# sysprep (Administrator re-enabled by /generalize, packer disable,
+# zero-fill, shutdown) without depending on the WinRM logon that sysprep
+# tears down.
+cookbook_file 'C:\Windows\Temp\post-sysprep.ps1' do
+  source 'post-sysprep.ps1'
+  action :create
+end
