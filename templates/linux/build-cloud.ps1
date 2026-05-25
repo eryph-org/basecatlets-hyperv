@@ -23,6 +23,13 @@
 
 .PARAMETER ConvertVhdx
   Emit sda.vhdx alongside sda.qcow2 (Hyper-V variant).
+
+.PARAMETER SourceImage
+  Rebuild mode: re-customize the supplied qcow2/vhdx instead of fetching
+  upstream. Skips download, family resize, and family one-shot setup
+  (kernel install / GRUB reconfig); refreshes EGS + cloud-init drops and
+  re-runs the cleanup pass. In Windows mode the file is uploaded to the
+  build catlet first.
 #>
 param(
   [Parameter(Mandatory=$true, Position=0)]
@@ -34,8 +41,13 @@ param(
   [string]$Kernel = 'azure',
   [switch]$NoWalinuxAgent,
   [switch]$DistUpgrade,
-  [switch]$ConvertVhdx
+  [switch]$ConvertVhdx,
+  [string]$SourceImage
 )
+
+if ($SourceImage -and -not (Test-Path -LiteralPath $SourceImage -PathType Leaf)) {
+  throw "SourceImage not found: $SourceImage"
+}
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
@@ -51,12 +63,15 @@ New-Item -ItemType Directory -Path $buildsDir -Force | Out-Null
 New-Item -ItemType Directory -Path $cacheDir  -Force | Out-Null
 
 # Shared arg list — no quoting concerns since none of these contain shell metachars.
+# $SourceImagePath is the path build.sh sees (local file on Linux host,
+# remote path on the build catlet in Windows mode).
 function Build-Args {
-  param([string]$OutputDir, [string]$CacheDir)
+  param([string]$OutputDir, [string]$CacheDir, [string]$SourceImagePath)
   $a = @('--template', $Template_name, '--output-dir', $OutputDir, '--cache-dir', $CacheDir, '--kernel', $Kernel)
-  if ($NoWalinuxAgent) { $a += '--no-walinuxagent' }
-  if ($DistUpgrade)    { $a += '--dist-upgrade' }
-  if ($ConvertVhdx)    { $a += '--convert-vhdx' }
+  if ($NoWalinuxAgent)   { $a += '--no-walinuxagent' }
+  if ($DistUpgrade)      { $a += '--dist-upgrade' }
+  if ($ConvertVhdx)      { $a += '--convert-vhdx' }
+  if ($SourceImagePath)  { $a += @('--source-image', $SourceImagePath) }
   return $a
 }
 
@@ -68,7 +83,7 @@ if ($IsLinux) {
       throw "$t not found in PATH (apt install libguestfs-tools qemu-utils curl)"
     }
   }
-  & bash $buildSh @(Build-Args -OutputDir $buildsDir -CacheDir $cacheDir)
+  & bash $buildSh @(Build-Args -OutputDir $buildsDir -CacheDir $cacheDir -SourceImagePath $SourceImage)
   if ($LASTEXITCODE -ne 0) { throw "build.sh exit $LASTEXITCODE" }
   Write-Host "Build complete: $buildsDir/$Template_name-stage1"
   return
@@ -140,8 +155,18 @@ Write-Host "Uploading templates/linux/ ..."
 egs-tool upload-directory --recursive --overwrite $catlet.VmId $linuxDir $remoteLinux
 if ($LASTEXITCODE -ne 0) { throw "upload-directory failed" }
 
+# Rebuild mode: upload the source image to the catlet so build.sh can read
+# it. Lives under the same per-run workdir and is cleaned up at the end.
+$remoteSource = $null
+if ($SourceImage) {
+  $remoteSource = "$remoteRoot/source/$([IO.Path]::GetFileName($SourceImage))"
+  Write-Host "Uploading source image: $SourceImage -> $remoteSource"
+  egs-tool upload-file $catlet.VmId $SourceImage $remoteSource
+  if ($LASTEXITCODE -ne 0) { throw "upload-file (source image) failed" }
+}
+
 Write-Host "Running build.sh on catlet..."
-$args = (Build-Args -OutputDir $remoteOut -CacheDir $remoteCache) -join ' '
+$args = (Build-Args -OutputDir $remoteOut -CacheDir $remoteCache -SourceImagePath $remoteSource) -join ' '
 & ssh $sshHost "sudo bash $remoteLinux/build.sh $args" 2>&1 | ForEach-Object { "[catlet] $_" }
 $buildExit = $LASTEXITCODE
 

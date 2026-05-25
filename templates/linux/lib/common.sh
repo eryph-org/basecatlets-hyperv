@@ -33,12 +33,19 @@ KERNEL="azure"           # ubuntu hyper-v variant only
 WALINUXAGENT="true"      # ubuntu hyper-v variant only
 CONVERT_VHDX="false"
 DIST_UPGRADE="false"
+SOURCE_IMAGE=""          # rebuild mode: existing qcow2/vhdx to re-customize
 
 usage() {
   cat >&2 <<EOF
 Usage: $0 --template <name> --output-dir <path> [options]
 Templates: ubuntu-22.04, ubuntu-24.04, ubuntu-25.04,
            almalinux-8, almalinux-9, almalinux-10
+
+Options:
+  --source-image <path>  Rebuild mode: re-customize an existing image
+                         (skips upstream download, family resize, and
+                         family one-shot setup; refreshes EGS, cloud-init
+                         drop-ins, and runs the standard cleanup pass).
 EOF
   exit 1
 }
@@ -53,12 +60,17 @@ parse_args() {
       --no-walinuxagent) WALINUXAGENT="false"; shift ;;
       --dist-upgrade)    DIST_UPGRADE="true"; shift ;;
       --convert-vhdx)    CONVERT_VHDX="true"; shift ;;
+      --source-image)    SOURCE_IMAGE="$2"; shift 2 ;;
       -h|--help)         usage ;;
       *) die "unknown arg: $1" ;;
     esac
   done
   [[ -z "$TEMPLATE_NAME" || -z "$OUTPUT_DIR" ]] && usage
   CACHE_DIR="${CACHE_DIR:-$OUTPUT_DIR/../cache}"
+  if [[ -n "$SOURCE_IMAGE" ]]; then
+    [[ ! -f "$SOURCE_IMAGE" ]] && die "source image not found: $SOURCE_IMAGE"
+    SOURCE_IMAGE="$(realpath "$SOURCE_IMAGE")"
+  fi
 }
 
 # ---------- workdir + logging ----------
@@ -108,6 +120,18 @@ fetch_cloud_image() {
 
   log_step "[3/7] Copy cached image to work file"
   cp --reflink=auto "$CACHE_FILE" "$WORK_IMG"
+}
+
+# Rebuild path: skip the upstream fetch and convert the supplied image to
+# the working qcow2. qemu-img auto-detects the input format (qcow2, vhdx,
+# raw, vmdk, ...), so callers can pass whatever they have. IMAGE_URL /
+# EXPECTED_SHA are stubbed for the metadata emitter; emit_metadata_and_catlet
+# distinguishes rebuilds via build_type.
+use_source_image() {
+  log_step "[1/7] Rebuild mode: using $SOURCE_IMAGE (skipping upstream fetch)"
+  qemu-img convert -p -O qcow2 "$SOURCE_IMAGE" "$WORK_IMG"
+  IMAGE_URL="$SOURCE_IMAGE"
+  EXPECTED_SHA=""
 }
 
 # ---------- eryph-guest-services fetch ----------
@@ -181,11 +205,14 @@ emit_vhdx() {
 }
 
 emit_metadata_and_catlet() {
+  local build_type="build"
+  [[ -n "$SOURCE_IMAGE" ]] && build_type="rebuild"
   cat > "$STAGE_DIR/metadata.json" <<EOF
 {
   "_os_type": "linux",
   "_os_name": "$TEMPLATE_NAME",
   "build_date": "$(date -Iseconds)",
+  "build_type": "$build_type",
   "source_image": "$IMAGE_URL",
   "source_sha256": "$EXPECTED_SHA",
   "family": "$FAMILY"

@@ -41,14 +41,25 @@ setup_logging
 ensure_libguestfs_backend
 
 # ---------- Stage A: fetch sources ----------
-fetch_cloud_image
-${FAMILY}_resize_image
+# Rebuild mode (--source-image): skip upstream fetch and family resize.
+# The supplied image already has the kernel/GRUB/resize-fs work done, so
+# the family's _common_vc_args (kernel install, GRUB reconfig) is also
+# skipped below — we only refresh EGS + cloud-init drops and re-run the
+# cleanup pass.
+if [[ -n "$SOURCE_IMAGE" ]]; then
+  use_source_image
+else
+  fetch_cloud_image
+  ${FAMILY}_resize_image
+fi
 fetch_eryph_guest_services
 
 # ---------- Stage B: common pass (yields kvm/amd64/sda.qcow2) ----------
 log_step "[4/7] virt-customize: common pass (kvm-flavored)"
 reset_vc_args
-${FAMILY}_common_vc_args        # family-specific: resize-fs, pkg ops, GRUB
+if [[ -z "$SOURCE_IMAGE" ]]; then
+  ${FAMILY}_common_vc_args      # family-specific: resize-fs, pkg ops, GRUB (first build only)
+fi
 common_provision_vc_args        # shared: eryph-gs, cloud-init drops (kvm flavor)
 common_cleanup_vc_args          # shared: machine-id, ssh keys, log truncation
 ${FAMILY}_pkg_clean_vc_args     # family-specific: apt clean / dnf clean
