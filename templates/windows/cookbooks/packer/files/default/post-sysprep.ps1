@@ -74,19 +74,19 @@ try {
 Write-Host "POST-SYSPREP: disabling network discovery prompt"
 New-Item -Path "HKLM:\System\CurrentControlSet\Control\Network\NewNetworkWindowOff\" -Force -ErrorAction SilentlyContinue | Out-Null
 
-# Randomize and disable the built-in Administrator. sysprep /generalize
-# re-enables the account as part of OOBE preparation, so this MUST run
-# after sysprep -- doing it earlier gets undone.
-Write-Host "POST-SYSPREP: randomizing Administrator password and disabling account"
+# Randomize the built-in Administrator password but leave the account
+# enabled so OOBE has a usable local account on the catlet's first boot
+# (otherwise modern Windows OOBE pauses to demand one). sysprep
+# /generalize re-enables Administrator as part of OOBE prep and resets
+# the password, so this MUST run after sysprep.
+Write-Host "POST-SYSPREP: randomizing Administrator password (account left enabled for OOBE)"
 try {
     Add-Type -AssemblyName System.Web
     $adminPasswordPlain = [System.Web.Security.Membership]::GeneratePassword(30, 4)
     $adminPassword = ConvertTo-SecureString $adminPasswordPlain -AsPlainText -Force
-    $adminAccount = Get-LocalUser Administrator
-    $adminAccount | Set-LocalUser -Password $adminPassword
-    $adminAccount | Disable-LocalUser
+    Get-LocalUser Administrator | Set-LocalUser -Password $adminPassword
 } catch {
-    Write-Host "POST-SYSPREP: WARNING failed to lock down Administrator: $_"
+    Write-Host "POST-SYSPREP: WARNING failed to randomize Administrator password: $_"
 }
 
 # Disable the packer build account so it isn't usable in the captured image.
