@@ -1,32 +1,38 @@
 {
-    "ubuntu": [
-        "ubuntu-22.04",
-        "ubuntu-24.04",
-        "ubuntu-25.04"
-    ],
-    "windows": [
-        "winsrv2016-standard",
-        "winsrv2016-standardcore",
-        "winsrv2019-standard",
-        "winsrv2019-standardcore",
-        "winsrv2022-standard",
-        "winsrv2022-standardcore",
-        "winsrv2022-datacenter",
-        "winsrv2025-standard",
-        "winsrv2025-standardcore",
-        "winsrv2025-datacenter",
-        "win10-2004-enterprise",
-        "win10-20h2-enterprise",
-        "win11-21h1-enterprise",
-        "win11-22h2-enterprise",
-        "win11-24h2-enterprise"
-    ],
-    "rhel-compatible": [
-        "almalinux-8",
-        "almalinux-9",
-        "almalinux-10",
-        "oracle-8",
-        "oracle-9",
-        "oracle-10"
-    ]
+    "packer": {
+        "windows": [
+            "winsrv2016-standard",
+            "winsrv2016-standardcore",
+            "winsrv2019-standard",
+            "winsrv2019-standardcore",
+            "winsrv2022-standard",
+            "winsrv2022-standardcore",
+            "winsrv2022-datacenter",
+            "winsrv2025-standard",
+            "winsrv2025-standardcore",
+            "winsrv2025-datacenter",
+            "win10-2004-enterprise",
+            "win10-20h2-enterprise",
+            "win11-21h1-enterprise",
+            "win11-22h2-enterprise",
+            "win11-24h2-enterprise"
+        ],
+        "rhel-compatible": [
+            "oracle-8",
+            "oracle-9",
+            "oracle-10"
+        ]
+    },
+    "libvirt": {
+        "ubuntu": [
+            "ubuntu-22.04",
+            "ubuntu-24.04",
+            "ubuntu-25.04"
+        ],
+        "rhel-compatible": [
+            "almalinux-8",
+            "almalinux-9",
+            "almalinux-10"
+        ]
+    }
 }

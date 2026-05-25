@@ -72,12 +72,6 @@ powershell_script 'remove unnecesary directories' do
   EOH
 end
 
-# Uninstall Git for Windows (installed for patching)
-windows_package 'git' do
-  action :remove
-  ignore_failure true
-end
-
 # clean all of the event logs
 %w(Application Security Setup System).each do |log|
   execute "Cleaning the #{log} event log" do
@@ -85,8 +79,27 @@ end
   end
 end
 
+# Drop the sysprep answer file at the path sysprep auto-discovers (and that
+# sysprep.ps1 also passes via /unattend:). Carries the oobeSystem skip flags
+# that previously lived under Cloudbase-Init's conf dir; without it, OOBE
+# prompts on the catlet's first boot.
+cookbook_file 'C:\Windows\System32\Sysprep\Unattend.xml' do
+  source 'Unattend.xml'
+  action :create
+end
+
 # Copy sysprep script to temp directory after cleanup
 cookbook_file 'C:\Windows\Temp\sysprep.ps1' do
   source 'sysprep.ps1'
+  action :create
+end
+
+# post-sysprep.ps1 is launched by a SYSTEM-context Scheduled Task that
+# sysprep.ps1 registers; it finishes the work that cannot run before
+# sysprep (Administrator re-enabled by /generalize, packer disable,
+# zero-fill, shutdown) without depending on the WinRM logon that sysprep
+# tears down.
+cookbook_file 'C:\Windows\Temp\post-sysprep.ps1' do
+  source 'post-sysprep.ps1'
   action :create
 end

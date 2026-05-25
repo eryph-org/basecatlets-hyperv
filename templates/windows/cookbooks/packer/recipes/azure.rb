@@ -1,14 +1,12 @@
-# Azure VM Agent installation - Azure-specific only
-# This ensures Windows VMs are always Azure-compatible
+# Azure VM Agent - install latest from Microsoft evergreen FWLink.
+# Services are stopped + disabled immediately; Unattend.xml's azure-detect.ps1
+# specialize-pass command re-enables them only when running on Azure.
 
-# Download the Azure VM Agent MSI
 remote_file "#{Chef::Config[:file_cache_path]}/WindowsAzureVmAgent.msi" do
-  source 'https://github.com/Azure/WindowsVMAgent/releases/download/2.7.41491.1172AMD64%26ARM64/WindowsAzureVmAgent.amd64_2.7.41491.1172_2507161172.fre.msi'
-  checksum 'bf14455dcc754164db546d7045751adb8f4b952371ea59004949f8a13a4146df'
-  action :create_if_missing
+  source 'https://go.microsoft.com/fwlink/?LinkID=394789'
+  action :create
 end
 
-# Install Azure VM Agent
 windows_package 'Windows Azure VM Agent' do
   source "#{Chef::Config[:file_cache_path]}/WindowsAzureVmAgent.msi"
   installer_type :msi
@@ -16,14 +14,31 @@ windows_package 'Windows Azure VM Agent' do
   action :install
 end
 
+%w(WindowsAzureGuestAgent RdAgent WindowsAzureTelemetryService).each do |svc|
+  service svc do
+    action [:stop, :disable]
+    ignore_failure true
+  end
+end
 
-# Set registry values for Azure VM Agent
+# Deploy the specialize-pass Azure detection script invoked by Unattend.xml.
+directory 'C:\Windows\Setup\Scripts' do
+  recursive true
+  action :create
+end
+
+cookbook_file 'C:\Windows\Setup\Scripts\azure-detect.ps1' do
+  source 'azure-detect.ps1'
+  action :create
+end
+
+# Provisioning\Enabled=1 tells the Azure Provisioning Agent (delivered via
+# ConfigDrive ISO at deploy time) to run pre-OOBE provisioning steps.
 registry_key 'HKLM\SOFTWARE\Microsoft\Windows Azure' do
   recursive true
   action :create
 end
 
-# Configure Azure VM provisioning settings
 registry_key 'HKLM\SOFTWARE\Microsoft\Windows Azure\Provisioning' do
   values [
     {
