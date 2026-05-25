@@ -79,6 +79,15 @@ end
   end
 end
 
+# Drop the sysprep answer file at the path sysprep auto-discovers (and that
+# sysprep.ps1 also passes via /unattend:). Carries the oobeSystem skip flags
+# that previously lived under Cloudbase-Init's conf dir; without it, OOBE
+# prompts on the catlet's first boot.
+cookbook_file 'C:\Windows\System32\Sysprep\Unattend.xml' do
+  source 'Unattend.xml'
+  action :create
+end
+
 # Copy sysprep script to temp directory after cleanup
 cookbook_file 'C:\Windows\Temp\sysprep.ps1' do
   source 'sysprep.ps1'
