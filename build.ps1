@@ -62,8 +62,8 @@ foreach ($methodProp in $buildJson.PSObject.Properties) {
                             Get-ChildItem -Path $stage1 -Filter '*.vhdx' -Recurse | ForEach-Object {
                                 $qcowPath = $_.FullName -replace '\.vhdx$', '.qcow2'
                                 if (-not (Test-Path $qcowPath)) {
-                                    Write-Host "  Converting $($_.Name) -> $(Split-Path $qcowPath -Leaf) ..."
-                                    & qemu-img convert -O qcow2 $_.FullName $qcowPath
+                                    Write-Host "  Converting $($_.Name) -> $(Split-Path $qcowPath -Leaf) (zstd) ..."
+                                    & qemu-img convert -p -c -O qcow2 -o compression_type=zstd $_.FullName $qcowPath
                                 }
                             }
                         }
