@@ -28,7 +28,7 @@ try {
 
     if ($assetTag -eq $azureAssetTag) {
         Write-Log "Azure environment detected, enabling agent services"
-        foreach ($svc in @('WindowsAzureGuestAgent', 'RdAgent', 'WindowsAzureTelemetryService')) {
+        foreach ($svc in @('WindowsAzureGuestAgent', 'RdAgent')) {
             $s = Get-Service -Name $svc -ErrorAction SilentlyContinue
             if ($s) {
                 Set-Service -Name $svc -StartupType Automatic -ErrorAction SilentlyContinue

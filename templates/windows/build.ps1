@@ -82,14 +82,20 @@ try{
 
   ..\..\tools\packer.exe init  windows.pkr.hcl
   ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=target_path="${isoFolder}" -var=vm_overrides_path="${overridesFile}" gen-files.pkr.hcl
+  if ($LASTEXITCODE -ne 0) { throw "gen-files packer build failed (exit $LASTEXITCODE)" }
   ..\..\tools\oscdimg.exe -u2 "${isoFolder}" "..\..\builds\$buildid.iso"
+  if ($LASTEXITCODE -ne 0) { throw "oscdimg failed (exit $LASTEXITCODE)" }
   ..\..\tools\packer.exe build -var-file="${template_name}.pkrvars.hcl" -var=secondary_iso_path="..\..\builds\$buildid.iso" -var=hyperv_switch="${SwitchName}" windows.pkr.hcl
+  if ($LASTEXITCODE -ne 0) { throw "windows packer build failed (exit $LASTEXITCODE)" }
   $metadataJson | Set-Content -Path ..\..\builds\$template_name-stage0\metadata.json
   Copy-Item $overridesFile ..\..\builds\$template_name-stage0\vm-overrides.json
 }
 finally{
-  Remove-Item -Recurse $isoFolder
-  Remove-Item "..\..\builds\$buildid.iso"
+  # Best-effort cleanup of the transient Autounattend ISO and its source folder.
+  # These are disposable once the VM build has consumed the .iso, so a missing
+  # path here must never mask a successful build (or the real build error).
+  if (Test-Path $isoFolder) { Remove-Item -Recurse -Force $isoFolder -ErrorAction SilentlyContinue }
+  if (Test-Path "..\..\builds\$buildid.iso") { Remove-Item "..\..\builds\$buildid.iso" -Force -ErrorAction SilentlyContinue }
   Pop-Location
 
 }

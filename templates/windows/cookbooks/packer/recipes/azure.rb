@@ -14,7 +14,7 @@ windows_package 'Windows Azure VM Agent' do
   action :install
 end
 
-%w(WindowsAzureGuestAgent RdAgent WindowsAzureTelemetryService).each do |svc|
+%w(WindowsAzureGuestAgent RdAgent).each do |svc|
   service svc do
     action [:stop, :disable]
     ignore_failure true
