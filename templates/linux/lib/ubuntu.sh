@@ -44,7 +44,16 @@ ubuntu_common_vc_args() {
     --run-command 'growpart /dev/sda 1'
     --run-command 'resize2fs /dev/sda1'
     # qemu-guest-agent: tiny, idles on Hyper-V (no virtio-serial), used on KVM.
-    --install qemu-guest-agent
+    # ufw: present in the standard cloud image but NOT in the minimal image we
+    # now build from; reinstall it (the base-OS validation expects a firewall).
+    # openssh-server is already in the minimal image, so it is not listed here.
+    --install qemu-guest-agent,ufw
+    # The minimal image ships an empty 'admin' group (gid 104). eryph's
+    # cloud-init user-data runs `useradd admin ...`, which auto-creates a private
+    # group named 'admin' and fails (exit 9) when that group already exists,
+    # leaving the catlet without its admin user. Drop the stray group so useradd
+    # can create it. Harmless no-op when the group is absent.
+    --run-command 'groupdel admin 2>/dev/null || true'
     --uninstall unattended-upgrades,ubuntu-release-upgrader-core
     --run-command 'sed -i "s/^Prompt=.*/Prompt=never/" /etc/update-manager/release-upgrades 2>/dev/null || true'
     --run-command 'systemctl disable apt-daily.timer apt-daily-upgrade.timer 2>/dev/null || true'
