@@ -103,11 +103,18 @@ foreach ($t in 'egs-tool','ssh.exe') {
 $catlet = Get-Catlet -ProjectName $BuildProject -ErrorAction SilentlyContinue |
             Where-Object Name -eq $BuildCatlet | Select-Object -First 1
 if (-not $catlet) {
-  throw @"
-Build catlet '$BuildCatlet' not found in project '$BuildProject'. Create it with:
-  New-Catlet -Name $BuildCatlet -ProjectName $BuildProject ``
-    -Config (Get-Content -Raw $repoRoot\templates\build-host\catlet.yaml)
-"@
+  $catletYaml = Join-Path $repoRoot 'templates\build-host\catlet.yaml'
+  if (-not (Test-Path -LiteralPath $catletYaml)) {
+    throw "Build catlet '$BuildCatlet' not found in project '$BuildProject' and bootstrap config is missing: $catletYaml"
+  }
+  Write-Host "Build catlet '$BuildCatlet' not found in project '$BuildProject' — creating it from $catletYaml ..."
+  New-Catlet -Name $BuildCatlet -ProjectName $BuildProject -Config (Get-Content -Raw $catletYaml) | Out-Null
+  $catlet = Get-Catlet -ProjectName $BuildProject -ErrorAction SilentlyContinue |
+              Where-Object Name -eq $BuildCatlet | Select-Object -First 1
+  if (-not $catlet) {
+    throw "Failed to create build catlet '$BuildCatlet' in project '$BuildProject'."
+  }
+  Write-Host "Build catlet created: $($catlet.Name) Id=$($catlet.Id)"
 }
 Write-Host "Build catlet: $($catlet.Name) Id=$($catlet.Id) VmId=$($catlet.VmId)"
 
@@ -125,8 +132,7 @@ while ($true) {
   try {
     $vmData = egs-tool get-data --json $catlet.VmId | ConvertFrom-Json -AsHashtable
     $done = $vmData.guest.Keys | Where-Object {
-      $_ -like 'CLOUD_INIT|*|finish|modules-final|*' -or
-      $_ -like 'CLOUDBASE_INIT|0|provisioning|completed|*'
+      $_ -like 'CLOUD_INIT|*|finish|modules-final|*'
     } | Where-Object {
       $e = $vmData.guest[$_]
       ($e -is [hashtable] -and $e.result -eq 'SUCCESS') -or ($e -eq 'completed')
@@ -166,9 +172,27 @@ if ($SourceImage) {
 }
 
 Write-Host "Running build.sh on catlet..."
-$args = (Build-Args -OutputDir $remoteOut -CacheDir $remoteCache -SourceImagePath $remoteSource) -join ' '
-& ssh $sshHost "sudo bash $remoteLinux/build.sh $args" 2>&1 | ForEach-Object { "[catlet] $_" }
+$buildArgs = (Build-Args -OutputDir $remoteOut -CacheDir $remoteCache -SourceImagePath $remoteSource) -join ' '
+$remoteCmd = "sudo bash $remoteLinux/build.sh $buildArgs"
+Write-Host "[ssh] ${sshHost}: $remoteCmd"
+
+# ssh returns build.sh's remote exit code. Disable PowerShell's native-command
+# auto-throw ($PSNativeCommandUseErrorActionPreference) for the remote run and
+# the diagnostics that follow — otherwise a non-zero ssh exit raises a
+# terminating error right here and the build.log download + tail below never
+# run, leaving only the useless "ssh.exe ended with non-zero exit code" message.
+# The explicit $LASTEXITCODE checks in this section handle errors instead.
+$PSNativeCommandUseErrorActionPreference = $false
+
+# Capture the live stream as well as printing it, so we still have something to
+# show if build.sh dies before it opens its own log file.
+$buildOutput = & ssh $sshHost $remoteCmd 2>&1 | ForEach-Object {
+  $line = "[catlet] $_"
+  Write-Host $line
+  $line
+}
 $buildExit = $LASTEXITCODE
+Write-Host "build.sh exit code: $buildExit"
 
 # Always fetch build.log (success or failure) so it's locally inspectable.
 # build.sh writes its full output (including virt-customize -v -x trace) to
@@ -179,15 +203,18 @@ egs-tool download-file $catlet.VmId "$remoteOut/build.log" $localLog 2>&1 | Out-
 if (Test-Path $localLog) {
   Write-Host "build.log: $localLog"
 } else {
-  Write-Warning "build.log NOT retrievable from $remoteOut/build.log — build.sh may have died before opening the log (early arg parse or family dispatch failure). Re-run with extra ssh diagnostics if reproducible."
+  Write-Warning "build.log NOT retrievable from $remoteOut/build.log — build.sh may have died before opening the log (early arg parse or family dispatch failure); the captured ssh output above is the only record."
 }
 
 if ($buildExit -ne 0) {
   if (Test-Path $localLog) {
-    Write-Host "--- last 60 lines of build.log ---"
-    Get-Content $localLog -Tail 60 | ForEach-Object { Write-Host "[catlet] $_" }
+    Write-Host "--- last 80 lines of build.log ---"
+    Get-Content $localLog -Tail 80 | ForEach-Object { Write-Host "[catlet] $_" }
+  } elseif ($buildOutput) {
+    Write-Host "--- captured ssh output (build.log unavailable) ---"
+    $buildOutput | Select-Object -Last 80 | ForEach-Object { Write-Host $_ }
   }
-  throw "build.sh failed on catlet (exit $buildExit)"
+  throw "build.sh failed on catlet (exit $buildExit). See $localLog"
 }
 
 Write-Host "Downloading artifacts ..."
