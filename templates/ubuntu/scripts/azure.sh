@@ -17,7 +17,6 @@ cat > /etc/waagent.conf << 'EOF'
 # Provisioning - let cloud-init handle provisioning
 Provisioning.Agent=auto
 Provisioning.Enabled=n
-Provisioning.UseCloudInit=y
 Provisioning.AllowResetSysUser=n
 Provisioning.RegenerateSshHostKeyPair=n
 Provisioning.DeleteRootPassword=n
@@ -39,9 +38,21 @@ AutoUpdate.Enabled=y
 
 # Logs
 Logs.Verbose=n
+Logs.Console=n
 OS.AllowHTTP=n
 OS.CheckRdmaDriver=n
 EOF
 
 # Enable walinuxagent service (will start automatically on Azure)
 systemctl enable walinuxagent.service
+
+# Gate the agent to Azure-only. Off-Azure (eryph/Hyper-V) cloud-init does all
+# provisioning and the agent would otherwise retry the Azure wireserver
+# (168.63.129.16) forever. ExecCondition exits the unit silently when the Azure
+# DMI chassis asset tag is absent (generic Hyper-V leaves it empty). Needs
+# systemd >= 243 (all supported Ubuntu).
+mkdir -p /etc/systemd/system/walinuxagent.service.d
+cat > /etc/systemd/system/walinuxagent.service.d/10-azure-only.conf << 'EOF'
+[Service]
+ExecCondition=/bin/sh -c 'test "$(cat /sys/class/dmi/id/chassis_asset_tag 2>/dev/null)" = "7783-7084-3265-9085-8269-3286-77"'
+EOF

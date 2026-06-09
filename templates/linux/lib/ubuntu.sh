@@ -93,10 +93,22 @@ ubuntu_hyperv_vc_args() {
     VC_ARGS+=(
       --install walinuxagent,cloud-guest-utils
       --upload "$FILES_DIR/waagent.conf:/etc/waagent.conf"
+      # Gate the agent to Azure-only (see waagent-azure-only.conf). Off-Azure it
+      # would otherwise retry the Azure wireserver forever.
+      --mkdir /etc/systemd/system/walinuxagent.service.d
+      --upload "$FILES_DIR/waagent-azure-only.conf:/etc/systemd/system/walinuxagent.service.d/10-azure-only.conf"
+      # Ensure the unit autostarts on Azure (the gate above keeps it inactive
+      # off-Azure). Mirrors the explicit enable in rhel.sh: the deb normally
+      # enables it via postinst, but virt-customize runs offline so we make it
+      # explicit rather than rely on the maintainer script firing.
+      --run-command 'systemctl enable walinuxagent.service 2>/dev/null || true'
     )
   fi
 
   VC_ARGS+=(
+    # Re-drop the stray 'admin' group in case a package installed above
+    # (e.g. walinuxagent) recreated it on the cloned image. See common pass.
+    --run-command 'groupdel admin 2>/dev/null || true'
     --run-command 'apt-get -y autoremove --purge'
     --run-command 'apt-get clean'
   )

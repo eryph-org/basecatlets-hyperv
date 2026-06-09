@@ -92,4 +92,22 @@ rhel_pkg_clean_vc_args() {
 # a second virt-customize pass when VC_ARGS is non-empty.
 rhel_hyperv_vc_args() {
   VC_ARGS+=( --upload "$FILES_DIR/91-eryph-hyperv.cfg:/etc/cloud/cloud.cfg.d/91-eryph.cfg" )
+
+  # Azure enablement: these images are also published to Azure, where the
+  # platform expects the Azure Linux Agent. waagent.conf disables waagent's own
+  # provisioning and defers to cloud-init (same waagent.conf as the ubuntu
+  # variant). Gated by --no-walinuxagent like ubuntu. The package comes from the
+  # distro repos and is correctly labeled by dnf.
+  if [[ "$WALINUXAGENT" == "true" ]]; then
+    VC_ARGS+=(
+      --install WALinuxAgent
+      --upload "$FILES_DIR/waagent.conf:/etc/waagent.conf"
+      --run-command 'systemctl enable waagent.service 2>/dev/null || true'
+      # Gate the agent to Azure-only (see waagent-azure-only.conf). On AlmaLinux 8
+      # (systemd 239) ExecCondition is ignored and the agent runs as before;
+      # Logs.Console=n in waagent.conf keeps the console quiet in that case.
+      --mkdir /etc/systemd/system/waagent.service.d
+      --upload "$FILES_DIR/waagent-azure-only.conf:/etc/systemd/system/waagent.service.d/10-azure-only.conf"
+    )
+  fi
 }
