@@ -1,0 +1,29 @@
+[Unit]
+Description=Relabel offline-installed files for SELinux (first boot)
+Documentation=https://github.com/eryph-org/hyperv-boxes
+DefaultDependencies=no
+After=local-fs.target
+Before=eryph-guest-services.service hypervkvpd.service waagent.service
+ConditionPathExists=/opt/eryph
+# The cloud-image build runs virt-customize offline, where the libguestfs
+# appliance has SELinux disabled - so neither the egs copy-in nor the dnf
+# installs (hyperv-daemons, libicu, WALinuxAgent, ...) can set SELinux labels.
+# Those files end up unlabeled_t, and under AlmaLinux's enforcing policy systemd
+# cannot exec them (egs-service, hypervkvpd, waagent all fail status=203/EXEC),
+# so EGS never reports available. Labels cannot be set offline (no SELinux LSM
+# in the appliance), so relabel the affected trees once on first boot, before
+# the services that need them start. ~7s, no reboot (vs a full /.autorelabel).
+# The '-' prefix makes this a no-op on non-SELinux systems (restorecon absent).
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=-/usr/sbin/restorecon -R /opt /usr /etc /var
+# hypervkvpd/waagent are udev/boot-triggered and will have already failed
+# (203/EXEC on their unlabeled binaries) before this relabel ran, and do not
+# auto-retry. Restart them now that they are correctly labeled. eryph-guest-
+# services is ordered after this unit (Before= above), so it starts clean.
+ExecStartPost=-/usr/bin/systemctl try-restart hypervkvpd.service waagent.service
+
+[Install]
+WantedBy=multi-user.target
