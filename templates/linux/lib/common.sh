@@ -136,12 +136,17 @@ use_source_image() {
 
 # ---------- eryph-guest-services fetch ----------
 fetch_eryph_guest_services() {
-  log_step "[3.5/7] Fetching eryph-guest-services"
+  # Version switch: true uses the latest version (may be a pre-release/preview
+  # such as the 0.4.0 preview); false uses the latest stable version.
+  # Edit this line to change which version is fetched.
+  local egs_use_preview=true
+  log_step "[3.5/7] Fetching eryph-guest-services (preview=$egs_use_preview)"
   EGS_TAR="$WORK_DIR/egs-linux.tar.gz"
-  EGS_URL="$(curl -fsSL https://releases.dbosoft.eu/eryph/guest-services/index.json | python3 -c '
-import sys, json
+  EGS_URL="$(curl -fsSL https://releases.dbosoft.eu/eryph/guest-services/index.json | EGS_USE_PREVIEW="$egs_use_preview" python3 -c '
+import sys, os, json
 d = json.load(sys.stdin)
-v = d.get("stableVersion") or d["latestVersion"]
+use_preview = os.environ["EGS_USE_PREVIEW"].lower() == "true"
+v = d["latestVersion"] if use_preview else (d.get("latestStableVersion") or d["latestVersion"])
 files = d["versions"][v]["files"]
 print(next(f["url"] for f in files if f.get("os")=="linux" and f.get("arch")=="amd64" and f["filename"].startswith("egs_")))
 ')"

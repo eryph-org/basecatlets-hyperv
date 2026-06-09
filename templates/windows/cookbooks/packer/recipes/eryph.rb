@@ -26,10 +26,19 @@ else
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
       }
 
+      # Version switch: $true uses the latest version (may be a
+      # pre-release/preview such as the 0.4.0 preview); $false uses the latest
+      # stable version. Edit this line to change which version is installed.
+      $usePreview = $true
+
       $productInfo = Invoke-RestMethod -Uri 'https://releases.dbosoft.eu/eryph/guest-services/index.json' -UseBasicParsing
-      $version = & { Set-StrictMode -Off; $productInfo.stableVersion }
-      if (-not $version) {
-        $version = $productInfo.latestVersion
+      if ($usePreview) {
+        $version = & { Set-StrictMode -Off; $productInfo.latestVersion }
+      } else {
+        $version = & { Set-StrictMode -Off; $productInfo.latestStableVersion }
+        if (-not $version) {
+          $version = $productInfo.latestVersion
+        }
       }
 
       $versionInfo = & { Set-StrictMode -Off; $productInfo.versions.$version }

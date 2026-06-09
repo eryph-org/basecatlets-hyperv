@@ -10,22 +10,24 @@ import tarfile
 def install_eryph_guest_services():
     download_url = ''
     if not download_url:
-        requested_version = 'latest'
+        # Version switch: True uses the latest version (may be a
+        # pre-release/preview such as the 0.4.0 preview); False uses the latest
+        # stable version. Edit this line to change which version is installed.
+        use_preview = True
+        requested_version = 'preview' if use_preview else 'stable'
         version = requested_version
-        
-        print("Fetching eryph guest services release information...")
+
+        print(f"Fetching eryph guest services release information (preview={use_preview})...")
         with urllib.request.urlopen('https://releases.dbosoft.eu/eryph/guest-services/index.json') as response:
             response_json = response.read().decode('utf-8')
             product_info = json.loads(response_json)
-            
-            if version == 'latest':
-                version = product_info.get('stableVersion')
-                if not version:
-                    version = product_info['latestVersion']
 
-            if version == 'prerelease':
+            if version == 'stable':
+                version = product_info.get('latestStableVersion') or product_info['latestVersion']
+
+            if version in ('latest', 'preview', 'prerelease'):
                 version = product_info['latestVersion']
-            
+
             version_info = product_info['versions'].get(version)
             if not version_info:
                 raise Exception(f"Version {requested_version} does not exist")

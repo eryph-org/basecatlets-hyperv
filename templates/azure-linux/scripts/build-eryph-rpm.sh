@@ -5,19 +5,28 @@ set -euo pipefail
 echo "Setting up RPM build environment..."
 mkdir -p ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 
+# Version switch: "true" uses the latest version (may be a pre-release/preview
+# such as the 0.4.0 preview); "false" uses the latest stable version.
+# Edit this line to change which version is built.
+EGS_USE_PREVIEW=true
+
 # Function to fetch latest version from releases API
 fetch_latest_version() {
-    echo "Fetching eryph guest services release information..."
+    echo "Fetching eryph guest services release information (preview=$EGS_USE_PREVIEW)..."
 
     # Download release information
     curl -s https://releases.dbosoft.eu/eryph/guest-services/index.json > /tmp/releases.json
 
-    # Parse JSON to get latest stable version, fallback to latest version
+    # Select target version: preview -> latestVersion, otherwise latestStableVersion
     VERSION=$(python3 -c "
 import json
 with open('/tmp/releases.json') as f:
     data = json.load(f)
-print(data.get('stableVersion', data['latestVersion']))
+use_preview = '$EGS_USE_PREVIEW'.lower() == 'true'
+if use_preview:
+    print(data['latestVersion'])
+else:
+    print(data.get('latestStableVersion') or data['latestVersion'])
 " 2>/dev/null || echo "latest")
 
     echo "Target version: $VERSION"
