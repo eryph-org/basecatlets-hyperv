@@ -76,6 +76,14 @@ parse_args() {
 # ---------- workdir + logging ----------
 init_workdir() {
   mkdir -p "$CACHE_DIR" "$OUTPUT_DIR"
+  # Keep all scratch on the same (large) disk as the output dir, NOT in /tmp.
+  # On Ubuntu 25.04 /tmp is a RAM-backed tmpfs (~2G); the work qcow2 (resized
+  # to 10G) and libguestfs's appliance overlay would overflow it with
+  # "No space left on device". OUTPUT_DIR lives under the build workdir on
+  # /var/tmp (real disk), so anchor TMPDIR / libguestfs scratch there.
+  local scratch="$(dirname "$OUTPUT_DIR")"
+  export TMPDIR="$scratch"
+  export LIBGUESTFS_TMPDIR="$scratch"
   WORK_DIR="$(mktemp -d)"
   trap 'rm -rf "$WORK_DIR"' EXIT
   WORK_IMG="$WORK_DIR/sda.qcow2"
@@ -89,11 +97,10 @@ setup_logging() {
 }
 
 # ---------- libguestfs backend ----------
+# Use libguestfs's direct (qemu) backend rather than libvirt — there is no
+# libvirtd on the build catlet. KVM acceleration is used automatically.
 ensure_libguestfs_backend() {
-  if [[ ! -e /dev/kvm ]]; then
-    export LIBGUESTFS_BACKEND=direct
-    log_warn "no /dev/kvm — libguestfs running in TCG mode (slower)"
-  fi
+  export LIBGUESTFS_BACKEND=direct
 }
 
 # ---------- cloud image fetch ----------

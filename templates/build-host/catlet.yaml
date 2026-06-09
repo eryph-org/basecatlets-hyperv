@@ -5,18 +5,26 @@
 #     -Config (Get-Content -Raw .\templates\build-host\catlet.yaml)
 #
 # build-cloud.ps1 starts it, waits for egs, scp's the worker in, runs
-# libguestfs/qemu inside. Memory/cpu sized for libguestfs's appliance and
-# virt-sparsify scratch. If /dev/kvm is unavailable the worker falls back
-# to LIBGUESTFS_BACKEND=direct (TCG) automatically.
+# libguestfs/qemu (KVM-accelerated) inside. Memory/cpu/disk sized for
+# libguestfs's appliance, the work image, and virt-sparsify scratch.
 
 name: hyperv-boxes-build
-parent: dbosoft/ubuntu-22.04/starter
+parent: dbosoft/ubuntu-25.04/starter-1.0
 
 cpu:
   count: 4
 
 memory:
   startup: 4096
+
+# The starter parent's ~8 GB root is too small: a build copies the work qcow2
+# (resized to 10 GB), customizes it (kernel install grows it), then copies it
+# again for the hyper-v variant and emits a vhdx — peak usage blows past 8 GB
+# and the build dies with "No space left on device". Give it a roomy root;
+# cloud-init grows the rootfs to fill the disk on first boot.
+drives:
+- name: sda
+  size: 20
 
 capabilities:
   - nested_virtualization
@@ -31,8 +39,31 @@ fodder:
       - qemu-utils
       - curl
       - ca-certificates
+      - zstd
+      # libguestfs's supermin appliance manifest lists isc-dhcp-client; its
+      # dhclient is what the appliance /init uses to bring up eth0 (DHCP) and
+      # write /etc/resolv.conf. 22.04 shipped it by default; 24.04 does not, so
+      # without this the appliance has no DHCP client — eth0 stays down and
+      # in-image apt installs fail with "Temporary failure resolving".
+      - isc-dhcp-client
     runcmd:
       # libguestfs's appliance needs read access to the host kernel image;
       # Ubuntu defaults to mode 0600 on /boot/vmlinuz-* which blocks it.
       - chmod 0644 /boot/vmlinuz-*
+      # supermin (the libguestfs appliance builder) ships 5.2.2-4ubuntu4 on
+      # 24.04 (and 5.2.2-6ubuntu3 through 25.10); none can load zstd-compressed
+      # kernel modules — the upstream fix is Debian supermin 5.2.2-7, not yet in
+      # Ubuntu. 24.04's linux-azure ships *.ko.zst, so the appliance hangs at
+      # "udevadm settle" with "insmod: Invalid module format". Decompress the
+      # modules to plain *.ko so the appliance's mini-initrd insmod can load them.
+      - find /lib/modules -name '*.ko.zst' -exec zstd -d --rm {} +
+      - depmod -a
+      # virt-customize installs packages inside the target image over qemu
+      # usermode (slirp) networking, whose DNS forwarder reads the HOST's
+      # /etc/resolv.conf. On 24.04 that is the systemd-resolved stub
+      # (nameserver 127.0.0.53); slirp cannot forward to a loopback resolver,
+      # so the appliance can't resolve archive.ubuntu.com and apt installs
+      # fail ("Temporary failure resolving"). Point resolv.conf at the uplink
+      # file, which lists the real upstream nameservers slirp can forward to.
+      - ln -sf /run/systemd/resolve/resolv.conf /etc/resolv.conf
       - install -d -m 0755 /var/tmp/hyperv-boxes-build/cache
