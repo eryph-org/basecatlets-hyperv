@@ -97,7 +97,7 @@ Critical post-processing script that:
 
 ### Windows Client
 - Windows 10 (2004, 20H2) Enterprise
-- Windows 11 (21H1, 22H2, 24H2) Enterprise
+- Windows 11 (21H1, 22H2, 24H2, 25H2, 26H2) Enterprise
 
 ## File Types
 - `.pkr.hcl` - Packer HCL configuration files

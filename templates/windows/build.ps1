@@ -17,7 +17,9 @@ param(
         'win10-20h2-enterprise',
         'win11-21h1-enterprise',
         'win11-22h2-enterprise',
-        'win11-24h2-enterprise'
+        'win11-24h2-enterprise',
+        'win11-25h2-enterprise',
+        'win11-26h2-enterprise'
       )]
       [string]$Template_name,
       [string]$SwitchName)
