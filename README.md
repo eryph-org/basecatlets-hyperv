@@ -74,7 +74,7 @@ Both are ready for `eryph-packer` to pack and publish.
 | AlmaLinux | 8, 9, 10 | cloud-image-customize |
 | Oracle Linux | 8, 9, 10 | Packer (installer) |
 | Windows Server | 2016, 2019, 2022, 2025 (Std / StdCore / Datacenter) | Packer |
-| Windows Desktop | 10 (2004, 20H2), 11 (21H1, 22H2, 24H2) Enterprise | Packer |
+| Windows Desktop | 10 (2004, 20H2), 11 (21H1, 22H2, 24H2, 25H2, 26H2) Enterprise | Packer |
 
 ## Architecture
 
