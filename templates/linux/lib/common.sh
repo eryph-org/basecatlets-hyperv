@@ -38,7 +38,7 @@ SOURCE_IMAGE=""          # rebuild mode: existing qcow2/vhdx to re-customize
 usage() {
   cat >&2 <<EOF
 Usage: $0 --template <name> --output-dir <path> [options]
-Templates: ubuntu-22.04, ubuntu-24.04, ubuntu-25.04,
+Templates: ubuntu-22.04, ubuntu-24.04, ubuntu-25.04, ubuntu-26.04,
            almalinux-8, almalinux-9, almalinux-10
 
 Options:

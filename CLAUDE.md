@@ -88,6 +88,7 @@ Critical post-processing script that:
 - Ubuntu 22.04 LTS
 - Ubuntu 24.04 LTS
 - Ubuntu 25.04
+- Ubuntu 26.04 LTS
 
 ### Windows Server
 - Windows Server 2016 (Standard, Standard Core, Datacenter)

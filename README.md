@@ -70,7 +70,7 @@ Both are ready for `eryph-packer` to pack and publish.
 
 | OS family | Versions | Build method |
 |---|---|---|
-| Ubuntu | 22.04, 24.04, 25.04 | cloud-image-customize |
+| Ubuntu | 22.04, 24.04, 25.04, 26.04 | cloud-image-customize |
 | AlmaLinux | 8, 9, 10 | cloud-image-customize |
 | Oracle Linux | 8, 9, 10 | Packer (installer) |
 | Windows Server | 2016, 2019, 2022, 2025 (Std / StdCore / Datacenter) | Packer |

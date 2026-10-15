@@ -17,6 +17,7 @@ ubuntu_init() {
     ubuntu-22.04) CODENAME=jammy;  VERSION=22.04 ;;
     ubuntu-24.04) CODENAME=noble;  VERSION=24.04 ;;
     ubuntu-25.04) CODENAME=plucky; VERSION=25.04 ;;
+    ubuntu-26.04) CODENAME=resolute; VERSION=26.04 ;;
     *) die "ubuntu_init called with unsupported template: $TEMPLATE_NAME" ;;
   esac
   IMAGE_FILE="ubuntu-${VERSION}-minimal-cloudimg-amd64.img"

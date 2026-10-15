@@ -29,7 +29,8 @@
         "ubuntu": [
             "ubuntu-22.04",
             "ubuntu-24.04",
-            "ubuntu-25.04"
+            "ubuntu-25.04",
+            "ubuntu-26.04"
         ],
         "rhel-compatible": [
             "almalinux-8",
