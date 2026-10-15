@@ -1,13 +1,10 @@
 # RHEL-Compatible Templates
 
-This directory contains Packer templates for building RHEL-compatible virtual machines for the eryph platform. The templates are designed to work with AlmaLinux, Oracle Linux, and RHEL distributions.
+This directory contains Packer templates for building RHEL-compatible virtual machines for the eryph platform. The templates are designed to work with Oracle Linux and RHEL distributions. AlmaLinux is built by the cloud-image-customize flow in `templates/linux/`.
 
 ## Available Templates
 
 ### Active Templates (Ready to Build)
-- **almalinux-8** - AlmaLinux 8.10 (free, publicly available ISO)
-- **almalinux-9** - AlmaLinux 9.6 (free, publicly available ISO)
-- **almalinux-10** - AlmaLinux 10.0 (new major release, free, publicly available ISO)
 - **oracle-8** - Oracle Linux 8.9 (free, publicly available ISO)
 - **oracle-9** - Oracle Linux 9.5 (free, publicly available ISO)
 - **oracle-10** - Oracle Linux 10.0 (new major release, free, publicly available ISO)
@@ -21,7 +18,7 @@ This directory contains Packer templates for building RHEL-compatible virtual ma
 ### Using the Main Build Script
 ```powershell
 # Build specific template
-.\build.ps1 -Filter "almalinux-8"
+.\build.ps1 -Filter "oracle-8"
 
 # List all available templates
 .\list.ps1
@@ -34,7 +31,7 @@ This directory contains Packer templates for building RHEL-compatible virtual ma
 ```powershell
 # From the rhel-compatible directory
 packer init -upgrade .
-packer build -var-file="almalinux-8.pkrvars.hcl" rhel-base.pkr.hcl
+packer build -var-file="oracle-8.pkrvars.hcl" rhel-base.pkr.hcl
 ```
 
 ## Template Features
@@ -114,7 +111,7 @@ The `scripts/` directory contains modular provisioning scripts:
 
 ### Variable Examples
 
-**AlmaLinux/RHEL (Standard Kernel)**:
+**RHEL (Standard Kernel)**:
 ```hcl
 kernel_packages = "kernel\nkernel-devel"
 kernel_exclusions = ""
@@ -129,12 +126,6 @@ distro_specific_post = "# Set UEK kernel as default boot option\ngrub2-set-defau
 ```
 
 ## Distribution Notes
-
-### AlmaLinux
-- Binary compatible with RHEL
-- Backed by CloudLinux with $1M annual funding
-- Fast security updates
-- Enterprise-focused
 
 ### Oracle Linux
 - 100% binary compatible with RHEL
@@ -157,7 +148,6 @@ distro_specific_post = "# Set UEK kernel as default boot option\ngrub2-set-defau
    - For Oracle Linux 8/9/10: Download checksum file from https://linux.oracle.com/security/gpg/archive.html
    - Look for files like `OracleLinux-R8-U9-Server-x86_64.checksum`, `OracleLinux-R9-U5-Server-x86_64.checksum`, `OracleLinux-R10-U0-Server-x86_64.checksum`
    - Extract the SHA256 checksum and replace placeholder in .pkrvars.hcl file
-   - For AlmaLinux: Check https://repo.almalinux.org/almalinux/[version]/isos/x86_64/CHECKSUM
 2. **ISO Download Fails**: Check internet connection and ISO URLs
 3. **Kickstart Timeout**: Increase boot_wait time in .pkrvars.hcl
 4. **Package Installation Fails**: Check repository availability
@@ -166,7 +156,7 @@ distro_specific_post = "# Set UEK kernel as default boot option\ngrub2-set-defau
 ### Debug Mode
 Add `-debug` flag to packer build for step-by-step execution:
 ```powershell
-packer build -debug -var-file="almalinux-8.pkrvars.hcl" rhel-base.pkr.hcl
+packer build -debug -var-file="oracle-8.pkrvars.hcl" rhel-base.pkr.hcl
 ```
 
 ## Best Practices

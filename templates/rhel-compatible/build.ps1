@@ -1,9 +1,6 @@
 param(
      [Parameter(Mandatory=$true, Position=0)]
      [ValidateSet(
-       'almalinux-8',
-       'almalinux-9',
-       'almalinux-10',
        'oracle-8',
        'oracle-9',
        'oracle-10'
