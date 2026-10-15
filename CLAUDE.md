@@ -22,7 +22,8 @@ hyperv-boxes/
 │   ├── oscdimg.exe      # Windows ISO creation tool
 │   └── catletlify.ps1   # Eryph-specific post-processing
 ├── templates/
-│   ├── ubuntu/          # Ubuntu templates (20.04, 22.04, 24.04, 25.04)
+│   ├── linux/           # cloud-image-customize flow (Ubuntu, AlmaLinux)
+│   ├── rhel-compatible/ # Packer templates (Oracle Linux)
 │   └── windows/         # Windows templates (Server 2016-2025, Win 10/11)
 ├── packer_cache/        # Downloaded ISO cache
 └── builds/              # Output directory for built VMs
@@ -33,7 +34,7 @@ hyperv-boxes/
 #### Two-Stage Build
 1. **Stage 0** (`*-stage0`): Packer builds the raw VM
    - Uses .pkr.hcl templates with .pkrvars.hcl for version-specific variables
-   - Installs OS with unattended installation (autoinstall for Ubuntu, Autounattend for Windows)
+   - Installs OS with unattended installation (Autounattend for Windows, kickstart for Oracle Linux)
    - Configures cloud-init/cloudbase-init
    - Runs provisioning scripts
 
@@ -63,13 +64,11 @@ Critical post-processing script that:
 ### Template Organization
 
 #### Ubuntu Templates
-- **Main template**: `ubuntu-autoinstall.pkr.hcl`
-- **Variables**: `ubuntu-XX.04.pkrvars.hcl` (20.04, 22.04, 24.04, 25.04)
+- **Build flow**: cloud-image-customize (`templates/linux/`, `libvirt` section of `build.json`)
+- **Source**: upstream minimal cloud images, customized with libguestfs; release mapping in `templates/linux/lib/ubuntu.sh`
 - **Key features**:
-  - linux-azure kernel for cloud optimization
-  - EFI boot for Hyper-V Gen 2
+  - linux-azure kernel + walinuxagent for the Hyper-V variant, default kernel for KVM
   - cloud-init configuration
-  - No recovery partition
 
 #### Windows Templates
 - **Main template**: `windows.pkr.hcl`

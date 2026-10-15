@@ -139,7 +139,6 @@ templates/
 │   ├── lib/                # common.sh + per-family hooks (ubuntu.sh, rhel.sh)
 │   └── files/              # cloud-init drop-ins, EGS systemd unit, catlet.yaml
 ├── rhel-compatible/        # Packer (Oracle Linux)
-├── ubuntu/                 # Packer (legacy, not used by libvirt flow)
 └── windows/                # Packer (Windows)
     ├── windows.pkr.hcl
     ├── win*.pkrvars.hcl    # Per-version variables
