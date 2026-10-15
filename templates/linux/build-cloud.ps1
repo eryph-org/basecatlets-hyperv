@@ -125,7 +125,6 @@ while ($true) {
   try { Start-Catlet -Id $catlet.Id -Force; break }
   catch { if ((Get-Date) -gt $cutoff) { throw "Start-Catlet timed out: $_" }; Start-Sleep -Seconds 5 }
 }
-egs-tool update-ssh-config | Out-Null
 
 Write-Host "Waiting for cloud-init + egs..."
 while ($true) {
@@ -140,7 +139,7 @@ while ($true) {
     if (-not $done) { throw 'cloud-init not finished' }
     if ((egs-tool get-status $catlet.VmId) -ne 'available') { throw 'egs not available' }
     egs-tool add-ssh-config $catlet.VmId | Out-Null
-    $null = & ssh.exe -o BatchMode=yes "$($catlet.Id).eryph.alt" true
+    $null = & ssh.exe -o BatchMode=yes "$($catlet.Vmid).hyper-v.alt" true
     if ($LASTEXITCODE -ne 0) { throw 'ssh probe failed' }
     break
   } catch {
@@ -149,7 +148,7 @@ while ($true) {
   }
 }
 
-$sshHost    = "$($catlet.Id).eryph.alt"
+$sshHost    = "$($catlet.VmId).hyper-v.alt"
 $runId      = Get-Date -Format 'yyyyMMddHHmmss'
 $remoteRoot = "/var/tmp/hyperv-boxes-build/$runId"
 $remoteLinux= "$remoteRoot/linux"
