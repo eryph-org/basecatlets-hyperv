@@ -22,6 +22,9 @@ username = "packer"
 password = "packer"
 boot_wait = "10s"
 
+# @base + UEK and kernel-devel do not fit into the default 4 GB disk
+disk_size = "8192"
+
 # Package list for Oracle Linux (full configuration)
 package_list = <<-EOF
 %packages --ignoremissing

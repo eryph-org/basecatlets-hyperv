@@ -173,6 +173,20 @@ build {
        ]
   }
 
+  # Same datasource drop-in as the cloud-image builds (NoCloud, Azure, None)
+  provisioner "file" {
+     source      = "${path.root}/../linux/files/91-eryph-hyperv.cfg"
+     destination = "/tmp/91-eryph.cfg"
+  }
+
+  provisioner "shell" {
+     execute_command = "echo '${var.password}' | {{ .Vars }} sudo -S -E sh -eux '{{ .Path }}'"
+     inline          = [
+       "install -m 644 -o root -g root /tmp/91-eryph.cfg /etc/cloud/cloud.cfg.d/91-eryph.cfg",
+       "rm -f /tmp/91-eryph.cfg"
+       ]
+  }
+
   # Run eryph.sh with Python (respects shebang)
   provisioner "shell" {
      environment_vars  = ["http_proxy=${var.http_proxy}", "https_proxy=${var.https_proxy}", "no_proxy=${var.no_proxy}"]

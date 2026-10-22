@@ -50,20 +50,8 @@ echo "${username} ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers.d/${username}
 sed -i 's/#PermitRootLogin yes/PermitRootLogin yes/' /etc/ssh/sshd_config
 sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
-# Configure cloud-init for NoCloud and Azure datasources
+# Configure cloud-init (datasources: 91-eryph.cfg, uploaded by packer)
 mkdir -p /etc/cloud/cloud.cfg.d
-
-# Multi-datasource configuration for Eryph (NoCloud) and Azure
-cat > /etc/cloud/cloud.cfg.d/91-nocloud_azure_datasource.cfg << 'EOF'
-datasource_list:
-  - NoCloud
-  - Azure
-  - None
-datasource:
-  Azure:
-    apply_network_config: false
-    data_dir: /var/lib/waagent
-EOF
 
 # Hyper-V KVP logging configuration
 cat > /etc/cloud/cloud.cfg.d/10-azure-kvp.cfg << 'EOF'

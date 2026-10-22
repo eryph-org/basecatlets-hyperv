@@ -27,9 +27,6 @@ disable_root: true
 # This will cause the set+update hostname module to not operate (if true)
 preserve_hostname: false
 
-# Datasource configuration for dual support (NoCloud + Azure)
-datasource_list: [ NoCloud, Azure ]
-
 # The modules that run in the 'init' stage
 cloud_init_modules:
  - migrator
@@ -104,7 +101,8 @@ EOF
 # Configure cloud-init for dual datasource support (NoCloud + Azure)
 mkdir -p /etc/cloud/cloud.cfg.d
 
-# Datasource configuration is handled in kickstart - no need to duplicate here
+# Datasource configuration (91-eryph.cfg) is uploaded by packer from
+# ../linux/files/91-eryph-hyperv.cfg, shared with the cloud-image builds
 
 # Configure Hyper-V integration for logging
 cat > /etc/cloud/cloud.cfg.d/10-azure-kvp.cfg << 'EOF'
