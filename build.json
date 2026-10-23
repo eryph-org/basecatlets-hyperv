@@ -38,6 +38,7 @@
             "almalinux-10"
         ],
         "debian": [
+            "debian-12",
             "debian-13"
         ]
     }
