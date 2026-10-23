@@ -34,12 +34,13 @@ WALINUXAGENT="true"      # ubuntu hyper-v variant only
 CONVERT_VHDX="false"
 DIST_UPGRADE="false"
 SOURCE_IMAGE=""          # rebuild mode: existing qcow2/vhdx to re-customize
+CHECKSUM_CMD="sha256sum" # family may override (e.g. debian publishes sha512)
 
 usage() {
   cat >&2 <<EOF
 Usage: $0 --template <name> --output-dir <path> [options]
 Templates: ubuntu-22.04, ubuntu-24.04, ubuntu-25.04, ubuntu-26.04,
-           almalinux-8, almalinux-9, almalinux-10
+           almalinux-8, almalinux-9, almalinux-10, debian-12, debian-13
 
 Options:
   --source-image <path>  Rebuild mode: re-customize an existing image
@@ -118,7 +119,7 @@ fetch_cloud_image() {
   if [[ ! -f "$CACHE_FILE" ]]; then
     log_step "[2/7] Downloading $IMAGE_URL"
     curl -fL "$IMAGE_URL" -o "$CACHE_FILE.tmp"
-    local actual; actual="$(sha256sum "$CACHE_FILE.tmp" | awk '{print $1}')"
+    local actual; actual="$("$CHECKSUM_CMD" "$CACHE_FILE.tmp" | awk '{print $1}')"
     [[ "$actual" != "$EXPECTED_SHA" ]] && { rm -f "$CACHE_FILE.tmp"; die "checksum mismatch: $actual vs $EXPECTED_SHA"; }
     mv "$CACHE_FILE.tmp" "$CACHE_FILE"
   else

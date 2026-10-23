@@ -29,6 +29,8 @@ case "$TEMPLATE_NAME" in
     FAMILY=ubuntu;    source "$LIB_DIR/ubuntu.sh" ;;
   almalinux-*)
     FAMILY=rhel;      source "$LIB_DIR/rhel.sh" ;;
+  debian-*)
+    FAMILY=debian;    source "$LIB_DIR/debian.sh" ;;
   oracle-*)
     die "oracle-* not supported here; use the packer flow at templates/rhel-compatible/" ;;
   *)
