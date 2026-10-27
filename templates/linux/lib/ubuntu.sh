@@ -49,6 +49,13 @@ ubuntu_common_vc_args() {
     # now build from; reinstall it (the base-OS validation expects a firewall).
     # openssh-server is already in the minimal image, so it is not listed here.
     --install qemu-guest-agent,ufw
+    # libicu: required by the .NET-based egs-service, which FailFasts without a
+    # "valid ICU package" (self-contained .NET ships libSystem.Globalization.
+    # Native.so but no ICU, and does not run invariant). The Ubuntu *minimal*
+    # image ships no libicu at all, so egs-service crash-loops and guest
+    # services never load. Install the highest available versioned runtime
+    # (name is libicuNN, differs per release). Mirrors debian.sh / rhel.sh.
+    --run-command 'apt-get update; pkg=$(apt-cache search --names-only "^libicu[0-9][0-9]*$" | sort -V | tail -n1 | cut -d" " -f1); if [ -n "$pkg" ]; then DEBIAN_FRONTEND=noninteractive apt-get install -y "$pkg"; fi'
     # The minimal image ships an empty 'admin' group (gid 104). eryph's
     # cloud-init user-data runs `useradd admin ...`, which auto-creates a private
     # group named 'admin' and fails (exit 9) when that group already exists,
